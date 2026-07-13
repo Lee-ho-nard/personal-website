@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Leonard Lymbourides — Personal Site</title>
+  <!-- Google Fonts: Fraunces for headings, Inter for body text -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@400;600&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    /* --- Color palette & base styles --- */
+    :root {
+      --bg: #f8f9fb;
+      --surface: #ffffff;
+      --text: #1a1d26;
+      --text-muted: #5c6370;
+      --accent: #2F5233;
+      --accent-hover: #243f27;
+      --border: #e5e7eb;
+      --shadow: 0 4px 24px rgba(26, 29, 38, 0.06);
+      --radius: 12px;
+      --max-width: 720px;
+    }
+
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    h1, h2, h3 {
+      font-family: "Fraunces", Georgia, "Times New Roman", serif;
+    }
+
+    a {
+      color: var(--accent);
+      transition: color 0.2s;
+    }
+
+    a:hover {
+      color: var(--accent-hover);
+    }
+
+    /* --- Layout --- */
+    .page {
+      max-width: var(--max-width);
+      margin: 0 auto;
+      padding: 2rem 1.5rem 4rem;
+    }
+
+    /* --- Header --- */
+    header {
+      text-align: center;
+      padding: 3rem 0 2.5rem;
+    }
+
+    header h1 {
+      font-size: clamp(2rem, 5vw, 2.75rem);
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      margin-bottom: 0.35rem;
+    }
+
+    header .subtitle {
+      font-size: 0.9375rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      letter-spacing: 0.02em;
+      margin-bottom: 0.75rem;
+    }
+
+    header .tagline {
+      font-size: 1.125rem;
+      color: var(--text-muted);
+      max-width: 28ch;
+      margin: 0 auto;
+    }
+
+    /* --- Skills pills --- */
+    .skills-row {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 0.5rem;
+      margin-bottom: 2.75rem;
+    }
+
+    .skill-pill {
+      font-size: 0.8125rem;
+      font-weight: 500;
+      padding: 0.35rem 0.75rem;
+      border-radius: 999px;
+      background: rgba(47, 82, 51, 0.08);
+      color: var(--accent);
+      border: 1px solid rgba(47, 82, 51, 0.18);
+    }
+
+    /* --- Navigation --- */
+    nav {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 0.5rem 1.25rem;
+      margin-bottom: 2.5rem;
+      padding-bottom: 1.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    nav a {
+      text-decoration: none;
+      font-size: 0.9375rem;
+      font-weight: 500;
+      padding: 0.25rem 0;
+    }
+
+    nav a:not(:hover):not(.active) {
+      color: var(--text-muted);
+    }
+
+    /* --- Sections --- */
+    section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 3rem 2.25rem;
+      margin-bottom: 2.75rem;
+      box-shadow: var(--shadow);
+      opacity: 0;
+      transform: translateY(16px);
+      transition: opacity 0.5s ease, transform 0.5s ease;
+    }
+
+    section.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    section h2 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin-bottom: 1.25rem;
+      padding-left: 1rem;
+      border-left: 3px solid var(--accent);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    section h2 .icon {
+      font-size: 1.375rem;
+    }
+
+    section p {
+      color: var(--text-muted);
+      margin-bottom: 1rem;
+    }
+
+    section p:last-child {
+      margin-bottom: 0;
+    }
+
+    /* --- Side-by-side cards (Training & Goals) --- */
+    .card-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin-top: 1.25rem;
+    }
+
+    .info-card {
+      background: rgba(47, 82, 51, 0.06);
+      border-radius: 8px;
+      padding: 1.25rem;
+      border: 1px solid rgba(47, 82, 51, 0.15);
+    }
+
+    .info-card h3 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 0.35rem;
+      color: var(--text);
+    }
+
+    .info-card p {
+      font-size: 0.9375rem;
+      margin-bottom: 0;
+    }
+
+    /* Stack cards in a single column on narrow screens */
+    @media (max-width: 600px) {
+      .card-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* --- Contact --- */
+    .contact-placeholder {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.25rem;
+      font-size: 0.9375rem;
+      text-align: center;
+    }
+
+    .contact-placeholder a {
+      text-decoration: none;
+      font-weight: 500;
+    }
+
+    /* --- Footer --- */
+    footer {
+      text-align: center;
+      margin-top: 2rem;
+      font-size: 0.875rem;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header>
+      <h1>Leonard Lymbourides</h1>
+      <p class="subtitle">15 · Zurich · Builder</p>
+      <p class="tagline">Student, athlete, and builder — learning in the classroom and on the track.</p>
+    </header>
+
+    <nav aria-label="Page sections">
+      <a href="#now">Now</a>
+      <a href="#training">Training</a>
+      <a href="#goals">Goals</a>
+      <a href="#contact">Contact</a>
+    </nav>
+
+    <main>
+      <section id="now">
+        <h2><span class="icon" aria-hidden="true">🔨</span> Now</h2>
+        <p>
+          Currently building muscle on a PPLUL split, staying hybrid and athletic. Learning
+          Mandarin using Duolingo, Pleco, and Anki. Leveling up my software builder skills
+          through project-based, AI-assisted development. Working toward business/finance and
+          language certifications as part of my long-term builder track.
+        </p>
+      </section>
+
+      <div class="skills-row" aria-label="Skills and languages">
+        <span class="skill-pill">German</span>
+        <span class="skill-pill">English</span>
+        <span class="skill-pill">French</span>
+        <span class="skill-pill">Mandarin (learning)</span>
+        <span class="skill-pill">HTML/CSS</span>
+        <span class="skill-pill">JavaScript</span>
+        <span class="skill-pill">AI-assisted development</span>
+      </div>
+
+      <section id="training">
+        <h2><span class="icon" aria-hidden="true">🏃</span> Training</h2>
+        <p>
+          I stay active through a mix of strength work and running. Training keeps me
+          disciplined, focused, and ready for whatever comes next — on and off the field.
+        </p>
+        <div class="card-grid">
+          <div class="info-card">
+            <h3>Gym</h3>
+            <p>
+              I follow a PPLUL split, training for strength and to support my running.
+              Consistency matters more than perfection.
+            </p>
+          </div>
+          <div class="info-card">
+            <h3>Running</h3>
+            <p>
+              Building a running habit to stay well-rounded and hybrid-athletic.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section id="goals">
+        <h2><span class="icon" aria-hidden="true">🎯</span> Goals</h2>
+        <p>
+          Beyond sports and school, I'm focused on skills that will matter for years to come.
+        </p>
+        <div class="card-grid">
+          <div class="info-card">
+            <h3>Software building</h3>
+            <p>
+              Understand how apps and websites work, write real code, and solve problems
+              with technology.
+            </p>
+          </div>
+          <div class="info-card">
+            <h3>Business building</h3>
+            <p>
+              Turn ideas into something useful, understand how products reach people, and
+              create value.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section id="contact">
+        <h2><span class="icon" aria-hidden="true">✉️</span> Contact</h2>
+        <p>Want to connect? Reach out anytime.</p>
+        <div class="contact-placeholder">
+          <a href="mailto:leonard.lymbourides@gmail.com">leonard.lymbourides@gmail.com</a>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <p>Built with HTML, CSS, and JavaScript.</p>
+    </footer>
+  </div>
+
+  <script>
+    // Highlight the nav link for whichever section is on screen
+    const sections = document.querySelectorAll("section");
+    const navLinks = document.querySelectorAll("nav a");
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            const id = entry.target.id;
+            navLinks.forEach((link) => {
+              link.classList.toggle("active", link.getAttribute("href") === "#" + id);
+            });
+          }
+        });
+      },
+      { rootMargin: "-40% 0px -50% 0px" }
+    );
+
+    sections.forEach((section) => observer.observe(section));
+
+    // Fade sections in as you scroll down the page
+    const fadeObserver = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add("visible");
+          }
+        });
+      },
+      { threshold: 0.15 }
+    );
+
+    sections.forEach((section) => fadeObserver.observe(section));
+  </script>
+</body>
+</html>
