@@ -203,8 +203,8 @@ Pill-shaped ghost button: Ink border 1px, 10px radius, padding 8px 19px. Ataero 
 
 | Level | Name | Value | Purpose |
 |-------|------|-------|---------|
-| 0 | Parchment Canvas | `#e5e4e0` | Base page background — warm off-white, sets the editorial print tone |
-| 1 | Paper | `#ffffff` | Elevated card and logo container surfaces — pure white against the warm canvas |
+| 0 | Parchment Canvas | `#e5e4e0` | Base page background — warm off-white, sets the editorial print tone. Content sections (`<section>` and everything inside — the Now/Contact/project-card/about-block content) sit directly on this level site-wide, no elevated card box beneath them |
+| 1 | Paper | `#ffffff` | Reserved for logo container surfaces if/when a client logo grid is added — not currently used for content sections |
 | 2 | Stone Panel | `#cdcdc9` | Mid-tone secondary surface for sections needing quiet structural separation |
 
 ## Elevation

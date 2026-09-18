@@ -400,25 +400,25 @@ nav a.active::after {
 }
 
 /* --- Sections --- */
+/* No boxed-card treatment anywhere on the site — text sits directly on
+   the page background site-wide. Internal spacing/typography (padding,
+   margin, dividers between repeating blocks like .project-card/.about-
+   block) is untouched, only the background/border box goes. On Home this
+   also opens the entire right-hand two-thirds of the page as real,
+   unobstructed roaming space for the scroll-linked hero orb (see
+   motion.js) instead of a card it has to be pushed clear of. */
 section {
-  background: var(--color-paper);
-  border-top: 1px solid var(--color-ash);
   border-radius: var(--radius-cards);
   padding: var(--spacing-46) var(--spacing-30);
   margin-bottom: var(--spacing-76);
 }
 
-/* Home's Now/Contact drop the boxed-card treatment so text sits directly
-   on the page background — this opens the entire right-hand two-thirds
-   of the page as real, unobstructed roaming space for the scroll-linked
-   hero orb (see motion.js) instead of a card it has to be pushed clear
-   of. Internal spacing/typography is untouched, only the box goes. */
+/* Keeps Now/Contact's text above the roaming hero orb (see motion.js)
+   when it passes behind them, same as the hero headline over the sphere. */
 #now,
 #contact {
   position: relative;
   z-index: 1;
-  background: transparent;
-  border-top: none;
 }
 
 /* --- Scroll-triggered reveal --- */
