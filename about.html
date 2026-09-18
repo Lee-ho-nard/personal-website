@@ -23,7 +23,7 @@
     </nav>
 
     <main>
-      <section>
+      <section class="reveal">
         <p>
           I'm 15, based in Zürich, and building toward one thing: being able to identify a problem, build a product, and get it in front of strangers — on my own, without waiting for permission or credentials.
         </p>
@@ -42,19 +42,20 @@
   </div>
 
   <script>
-    const sections = document.querySelectorAll("section");
-    const fadeObserver = new IntersectionObserver(
+    const revealEls = document.querySelectorAll(".reveal");
+    const revealObserver = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
             entry.target.classList.add("visible");
+            revealObserver.unobserve(entry.target);
           }
         });
       },
       { threshold: 0.15 }
     );
 
-    sections.forEach((section) => fadeObserver.observe(section));
+    revealEls.forEach((el) => revealObserver.observe(el));
   </script>
 </body>
 </html>

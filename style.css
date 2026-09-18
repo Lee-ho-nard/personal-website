@@ -53,6 +53,14 @@
   --radius-links: 10px;
 
   --page-max-width: 1400px;
+
+  /* Motion */
+  --duration-fast: 150ms;
+  --duration-base: 300ms;
+  --duration-slow: 600ms;
+  --duration-orb: 48s;
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --stagger-step: 75ms;
 }
 
 *,
@@ -107,6 +115,17 @@ a {
   z-index: 0;
 }
 
+@media (prefers-reduced-motion: no-preference) {
+  .sphere {
+    animation: orb-hue-drift var(--duration-orb) linear infinite;
+  }
+}
+
+@keyframes orb-hue-drift {
+  from { filter: hue-rotate(0deg); }
+  to { filter: hue-rotate(360deg); }
+}
+
 .ring {
   position: absolute;
   border: 1px solid var(--color-ash);
@@ -156,6 +175,43 @@ header .tagline {
   margin-top: var(--spacing-19);
 }
 
+/* --- Hero entrance sequence (home page only) --- */
+@media (prefers-reduced-motion: no-preference) {
+  .hero .label {
+    opacity: 0;
+    animation: hero-fade-up var(--duration-base) var(--ease-standard) forwards;
+    animation-delay: 0ms;
+  }
+
+  .hero header h1 {
+    clip-path: inset(0 100% 0 0);
+    animation: hero-clip-reveal var(--duration-slow) var(--ease-standard) forwards;
+    animation-delay: var(--stagger-step);
+  }
+
+  .hero .tagline {
+    opacity: 0;
+    animation: hero-fade-up var(--duration-base) var(--ease-standard) forwards;
+    animation-delay: calc(var(--stagger-step) * 2);
+  }
+
+  .hero .skill-pill {
+    opacity: 0;
+    animation: hero-fade-up var(--duration-base) var(--ease-standard) forwards;
+    animation-delay: calc(var(--stagger-step) * 3 + var(--i, 0) * var(--stagger-step) * 0.5);
+  }
+}
+
+@keyframes hero-fade-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes hero-clip-reveal {
+  from { clip-path: inset(0 100% 0 0); }
+  to { clip-path: inset(0 0 0 0); }
+}
+
 /* --- Skills / tags --- */
 .skills-row {
   display: flex;
@@ -165,6 +221,7 @@ header .tagline {
 }
 
 .skill-pill {
+  display: inline-block;
   font-size: var(--text-caption);
   letter-spacing: var(--tracking-caption);
   text-transform: uppercase;
@@ -172,6 +229,11 @@ header .tagline {
   border-radius: var(--radius-links);
   border: 1px solid var(--color-ink);
   color: var(--color-ink);
+  transition: transform var(--duration-fast) var(--ease-standard);
+}
+
+.skill-pill:hover {
+  transform: scale(1.03);
 }
 
 /* --- Navigation --- */
@@ -185,17 +247,30 @@ nav {
 }
 
 nav a {
+  position: relative;
   text-decoration: none;
   font-size: var(--text-caption);
   letter-spacing: var(--tracking-caption);
   text-transform: uppercase;
   padding: var(--spacing-5) 0;
-  border-bottom: 1px solid transparent;
 }
 
-nav a:hover,
-nav a.active {
-  border-bottom-color: var(--color-ink);
+nav a::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: var(--color-ink);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform var(--duration-base) var(--ease-standard);
+}
+
+nav a:hover::after,
+nav a.active::after {
+  transform: scaleX(1);
 }
 
 /* --- Page header (Work / About) --- */
@@ -219,14 +294,25 @@ section {
   border-radius: var(--radius-cards);
   padding: var(--spacing-46) var(--spacing-30);
   margin-bottom: var(--spacing-76);
-  opacity: 0;
-  transform: translateY(16px);
-  transition: opacity 0.5s ease, transform 0.5s ease;
 }
 
-section.visible {
+/* --- Scroll-triggered reveal --- */
+.reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity var(--duration-slow) var(--ease-standard), transform var(--duration-slow) var(--ease-standard);
+}
+
+.reveal.visible {
   opacity: 1;
   transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    transform: none;
+    transition: opacity var(--duration-fast) linear;
+  }
 }
 
 section .section-label {
@@ -364,12 +450,21 @@ section p:last-of-type {
   border: 1px solid var(--color-ink);
   border-radius: var(--radius-links);
   padding: var(--spacing-8) var(--spacing-19);
-  transition: background 0.2s, color 0.2s;
+  transition: background var(--duration-base) var(--ease-standard), color var(--duration-base) var(--ease-standard);
 }
 
 .ghost-link:hover {
   background: var(--color-ink);
   color: var(--color-parchment);
+}
+
+.ghost-link .arrow {
+  display: inline-block;
+  transition: transform var(--duration-base) var(--ease-standard);
+}
+
+.ghost-link:hover .arrow {
+  transform: translateX(4px);
 }
 
 /* --- Contact --- */

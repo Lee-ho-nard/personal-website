@@ -24,7 +24,7 @@
 
     <main>
       <section>
-        <article class="project-card" id="flit">
+        <article class="project-card reveal" id="flit">
           <p class="section-label">Flit — Personal Operating System</p>
           <h2>Flit</h2>
           <p>
@@ -42,7 +42,7 @@
           </dl>
         </article>
 
-        <article class="project-card">
+        <article class="project-card reveal">
           <p class="section-label">Client Work</p>
           <h2>Premium Website Design</h2>
           <p>
@@ -61,19 +61,20 @@
   </div>
 
   <script>
-    const sections = document.querySelectorAll("section");
-    const fadeObserver = new IntersectionObserver(
+    const revealEls = document.querySelectorAll(".reveal");
+    const revealObserver = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
             entry.target.classList.add("visible");
+            revealObserver.unobserve(entry.target);
           }
         });
       },
       { threshold: 0.15 }
     );
 
-    sections.forEach((section) => fadeObserver.observe(section));
+    revealEls.forEach((el) => revealObserver.observe(el));
   </script>
 </body>
 </html>

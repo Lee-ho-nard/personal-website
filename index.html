@@ -23,14 +23,14 @@
       </header>
 
       <div class="skills-row" aria-label="Skills and languages">
-        <span class="skill-pill">German</span>
-        <span class="skill-pill">English</span>
-        <span class="skill-pill">French</span>
-        <span class="skill-pill">Mandarin (learning)</span>
-        <span class="skill-pill">HTML/CSS</span>
-        <span class="skill-pill">JavaScript</span>
-        <span class="skill-pill">Firebase &amp; Firestore</span>
-        <span class="skill-pill">PWA development</span>
+        <span class="skill-pill" style="--i:0">German</span>
+        <span class="skill-pill" style="--i:1">English</span>
+        <span class="skill-pill" style="--i:2">French</span>
+        <span class="skill-pill" style="--i:3">Mandarin (learning)</span>
+        <span class="skill-pill" style="--i:4">HTML/CSS</span>
+        <span class="skill-pill" style="--i:5">JavaScript</span>
+        <span class="skill-pill" style="--i:6">Firebase &amp; Firestore</span>
+        <span class="skill-pill" style="--i:7">PWA development</span>
       </div>
     </div>
 
@@ -41,21 +41,21 @@
     </nav>
 
     <main>
-      <section id="now">
+      <section id="now" class="reveal">
         <p class="section-label">Now</p>
         <h2>Now</h2>
         <p>
           Currently building Flit, a mobile-first personal operating system, from architecture through to launch.
         </p>
-        <a class="ghost-link" href="work.html#flit">See what I've built <span aria-hidden="true">→</span></a>
+        <a class="ghost-link" href="work.html#flit">See what I've built <span class="arrow" aria-hidden="true">→</span></a>
       </section>
 
-      <section id="contact">
+      <section id="contact" class="reveal">
         <p class="section-label">Contact</p>
         <h2>Contact</h2>
         <p>Want to connect? Reach out anytime.</p>
         <div class="contact-placeholder">
-          <a class="ghost-link" href="mailto:leonard.lymbourides@gmail.com">leonard.lymbourides@gmail.com <span aria-hidden="true">→</span></a>
+          <a class="ghost-link" href="mailto:leonard.lymbourides@gmail.com">leonard.lymbourides@gmail.com <span class="arrow" aria-hidden="true">→</span></a>
         </div>
       </section>
     </main>
@@ -66,20 +66,21 @@
   </div>
 
   <script>
-    // Fade sections in as you scroll down the page
-    const sections = document.querySelectorAll("section");
-    const fadeObserver = new IntersectionObserver(
+    // Reveal cards/sections as they enter the viewport
+    const revealEls = document.querySelectorAll(".reveal");
+    const revealObserver = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
             entry.target.classList.add("visible");
+            revealObserver.unobserve(entry.target);
           }
         });
       },
       { threshold: 0.15 }
     );
 
-    sections.forEach((section) => fadeObserver.observe(section));
+    revealEls.forEach((el) => revealObserver.observe(el));
   </script>
 </body>
 </html>
