@@ -109,8 +109,11 @@
     const heroSphere = hero ? hero.querySelector(".sphere") : null;
     const footer = document.querySelector("footer");
 
-    if (hero && heroSphere && footer) {
+    const card = document.querySelector("section");
+
+    if (hero && heroSphere && footer && card) {
       let scrollQueued = false;
+      const restRightInset = 35; // matches .hero .sphere's base `right` value
 
       function updateScrollOrb() {
         scrollQueued = false;
@@ -120,6 +123,27 @@
         const scale = 1 - progress * 0.35; // recede as you scroll past the hero
         const drift = -progress * 40; // px, drifts up slightly toward its resting slot
 
+        // Blended in over the last 40% of the hero scroll: measure the
+        // actual card edge and push the orb right by exactly however much
+        // is needed to clear it, so it can never overlap a card regardless
+        // of viewport width — a measured guarantee, not an assumed margin.
+        //
+        // `scale()` shrinks the box around its own transform-origin (the
+        // center of its *unscaled* layout box), so the post-scale edge has
+        // to be derived from the unscaled center, not from naively
+        // subtracting the already-scaled width from the unscaled edge.
+        const capBlend = Math.max(0, Math.min(1, (progress - 0.6) / 0.4));
+        let pushX = 0;
+        if (capBlend > 0) {
+          const baseWidth = Math.min(320, window.innerWidth * 0.55);
+          const naturalCenterX = window.innerWidth - restRightInset - baseWidth / 2;
+          const orbWidth = baseWidth * scale;
+          const safetyBuffer = 24;
+          const targetLeftEdge = card.getBoundingClientRect().right + safetyBuffer;
+          const neededPush = targetLeftEdge - (naturalCenterX - orbWidth / 2);
+          pushX = Math.max(0, neededPush) * capBlend;
+        }
+
         const footerTop = footer.getBoundingClientRect().top + scrollY;
         const fadeStart = footerTop - window.innerHeight * 1.2;
         const fadeEnd = footerTop - window.innerHeight * 0.4;
@@ -128,19 +152,19 @@
 
         heroSphere.style.setProperty("--scroll-scale", scale.toFixed(3));
         heroSphere.style.setProperty("--scroll-y", drift.toFixed(1) + "px");
+        heroSphere.style.setProperty("--scroll-x", pushX.toFixed(1) + "px");
         heroSphere.style.setProperty("--scroll-opacity", (1 - fadeProgress).toFixed(3));
       }
 
-      window.addEventListener(
-        "scroll",
-        () => {
-          if (!scrollQueued) {
-            scrollQueued = true;
-            requestAnimationFrame(updateScrollOrb);
-          }
-        },
-        { passive: true }
-      );
+      function queueScrollUpdate() {
+        if (!scrollQueued) {
+          scrollQueued = true;
+          requestAnimationFrame(updateScrollOrb);
+        }
+      }
+
+      window.addEventListener("scroll", queueScrollUpdate, { passive: true });
+      window.addEventListener("resize", queueScrollUpdate, { passive: true });
 
       updateScrollOrb();
     }

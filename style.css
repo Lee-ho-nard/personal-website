@@ -172,8 +172,11 @@ a {
 
 .sphere {
   position: absolute;
+  /* Centered on the same point as .ring--outer/.ring--inner (both average
+     to a center 100px down / 155px in from the hero's top-right corner) —
+     keep this in sync with the rings if their offsets ever change. */
   top: -60px;
-  right: -40px;
+  right: 5px;
   width: min(320px, 55vw);
   height: min(320px, 55vw);
   border-radius: 50%;
@@ -190,12 +193,15 @@ a {
 
   /* Home only: the orb persists in the viewport while scrolling instead
      of scrolling away with the hero, subtly receding via scroll progress
-     (see motion.js). Work/About/Life keep the static absolute version. */
+     (see motion.js). top/right reproduce the same ring-centered resting
+     spot as the absolute version above, converted to viewport coordinates
+     at scroll 0, so there's no jump at load. Work/About/Life keep the
+     static absolute version. */
   .hero .sphere {
     position: fixed;
-    top: var(--spacing-46);
-    right: var(--spacing-30);
-    transform: translate(var(--orb-x, 0px), var(--orb-y, 0px)) translateY(var(--scroll-y, 0px)) scale(var(--scroll-scale, 1));
+    top: -14px;
+    right: 35px;
+    transform: translate(var(--orb-x, 0px), var(--orb-y, 0px)) translate(var(--scroll-x, 0px), var(--scroll-y, 0px)) scale(var(--scroll-scale, 1));
     opacity: var(--scroll-opacity, 1);
     transition: opacity var(--duration-base) var(--ease-standard);
   }
@@ -358,8 +364,9 @@ nav a.active::after {
 /* --- Page header (Work / About / Life) --- */
 .page-header {
   position: relative;
-  overflow: hidden;
-  min-height: 220px;
+  /* Tall enough to fully contain the orb (up to 320px) without clipping it —
+     no overflow:hidden here, unlike .hero, so the circle always renders whole. */
+  min-height: 360px;
   padding: var(--spacing-46) 0 var(--spacing-30);
 }
 
@@ -379,11 +386,12 @@ nav a.active::after {
 }
 
 /* The orb here is the exact same element/size as the Home hero's — only
-   the frame around it is smaller, so it's cropped rather than scaled.
-   That keeps the hero-orb view-transition a pure move, never a resize. */
+   its position differs, sitting flush inside the page column (no negative
+   offset, so nothing bleeds past the header's own box and needs cropping).
+   Still the same hero-orb view-transition target, so it's a pure move. */
 .page-header .sphere {
-  top: -80px;
-  right: -60px;
+  top: 0;
+  right: 0;
 }
 
 /* --- Sections --- */
