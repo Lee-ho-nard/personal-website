@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>About — Leonard Lymbourides</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="page">
+    <div class="page-header">
+      <p class="label">Page 3</p>
+      <h1>About</h1>
+    </div>
+
+    <nav aria-label="Site navigation">
+      <a href="index.html">Home</a>
+      <a href="work.html">Work</a>
+      <a href="about.html" class="active">About</a>
+    </nav>
+
+    <main>
+      <section>
+        <p>
+          I'm 15, based in Zürich, and building toward one thing: being able to identify a problem, build a product, and get it in front of strangers — on my own, without waiting for permission or credentials.
+        </p>
+        <p>
+          I speak German, English, and French, and I'm learning Mandarin. I train five to six times a week — a Push/Pull/Legs split, with a half-marathon as a running goal — because consistency there translates directly to consistency everywhere else.
+        </p>
+        <p>
+          Right now most of my time goes to Flit, a product I'm taking from idea to public launch solo. Alongside it, I build things like premium website concepts to stay sharp on delivering to someone else's standard, not just my own.
+        </p>
+      </section>
+    </main>
+
+    <footer>
+      <p>Built with HTML, CSS, and JavaScript.</p>
+    </footer>
+  </div>
+
+  <script>
+    const sections = document.querySelectorAll("section");
+    const fadeObserver = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add("visible");
+          }
+        });
+      },
+      { threshold: 0.15 }
+    );
+
+    sections.forEach((section) => fadeObserver.observe(section));
+  </script>
+</body>
+</html>

@@ -8,327 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
-  <style>
-    :root {
-      /* Colors */
-      --color-parchment: #e5e4e0;
-      --color-ink: #1d1d1d;
-      --color-paper: #ffffff;
-      --color-ash: #bfbebe;
-      --color-stone: #cdcdc9;
-      --gradient-iridescent-sphere: linear-gradient(255deg, rgb(250, 203, 14), rgb(240, 107, 168) 30%, rgb(120, 186, 230) 65%, rgb(255, 255, 255));
-
-      /* Typography */
-      --font-display: 'Inter', ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-
-      --text-caption: 11px;
-      --leading-caption: 1.4;
-      --tracking-caption: 0.55px;
-
-      --text-body-sm: 15px;
-      --leading-body-sm: 1.4;
-      --tracking-body-sm: 0.15px;
-
-      --text-body: 18px;
-      --leading-body: 1.4;
-      --tracking-body: 0.23px;
-
-      --text-subheading: 34px;
-      --leading-subheading: 1;
-      --tracking-subheading: 0.44px;
-
-      --text-heading-sm: 46px;
-      --leading-heading-sm: 1;
-      --tracking-heading-sm: 0.6px;
-
-      --text-heading: 70px;
-      --leading-heading: 0.8;
-      --tracking-heading: 0.91px;
-
-      --text-display: 103px;
-      --leading-display: 0.8;
-      --tracking-display: 1.34px;
-
-      /* Spacing */
-      --spacing-5: 5px;
-      --spacing-8: 8px;
-      --spacing-15: 15px;
-      --spacing-19: 19px;
-      --spacing-30: 30px;
-      --spacing-46: 46px;
-      --spacing-76: 76px;
-      --spacing-119: 119px;
-
-      /* Radius */
-      --radius-cards: 0px;
-      --radius-links: 10px;
-
-      --page-max-width: 1400px;
-    }
-
-    *,
-    *::before,
-    *::after {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-
-    html {
-      scroll-behavior: smooth;
-      overflow-x: hidden;
-    }
-
-    body {
-      font-family: var(--font-display);
-      background: var(--color-parchment);
-      color: var(--color-ink);
-      font-size: var(--text-body-sm);
-      line-height: var(--leading-body-sm);
-      -webkit-font-smoothing: antialiased;
-      overflow-x: hidden;
-    }
-
-    a {
-      color: var(--color-ink);
-    }
-
-    /* --- Layout --- */
-    .page {
-      max-width: var(--page-max-width);
-      margin: 0 auto;
-      padding: var(--spacing-46) var(--spacing-30) var(--spacing-76);
-    }
-
-    /* --- Hero --- */
-    .hero {
-      position: relative;
-      padding: var(--spacing-76) 0 var(--spacing-46);
-      overflow: hidden;
-    }
-
-    .sphere {
-      position: absolute;
-      top: -60px;
-      right: -40px;
-      width: min(320px, 55vw);
-      height: min(320px, 55vw);
-      border-radius: 50%;
-      background: var(--gradient-iridescent-sphere);
-      z-index: 0;
-    }
-
-    .ring {
-      position: absolute;
-      border: 1px solid var(--color-ash);
-      border-radius: 50%;
-      z-index: 0;
-    }
-
-    .ring--outer { width: min(460px, 80vw); height: min(460px, 80vw); top: -130px; right: -70px; }
-    .ring--inner { width: min(380px, 68vw); height: min(380px, 68vw); top: -90px; right: -40px; }
-
-    @media (max-width: 480px) {
-      .ring { display: none; }
-      .sphere { width: 55vw; height: 55vw; top: -40px; right: -20px; }
-    }
-
-    .label {
-      position: relative;
-      z-index: 1;
-      font-size: var(--text-caption);
-      line-height: var(--leading-caption);
-      letter-spacing: var(--tracking-caption);
-      text-transform: uppercase;
-      color: var(--color-ink);
-      margin-bottom: var(--spacing-15);
-    }
-
-    header h1 {
-      position: relative;
-      z-index: 1;
-      font-family: var(--font-display);
-      font-weight: 400;
-      text-transform: uppercase;
-      font-size: clamp(2.6rem, 7vw, var(--text-heading));
-      line-height: var(--leading-heading);
-      letter-spacing: var(--tracking-heading);
-      max-width: 14ch;
-    }
-
-    header .tagline {
-      position: relative;
-      z-index: 1;
-      font-size: var(--text-body);
-      line-height: var(--leading-body);
-      letter-spacing: var(--tracking-body);
-      max-width: 40ch;
-      margin-top: var(--spacing-19);
-    }
-
-    /* --- Skills / tags --- */
-    .skills-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: var(--spacing-8);
-      margin: var(--spacing-46) 0 var(--spacing-46);
-    }
-
-    .skill-pill {
-      font-size: var(--text-caption);
-      letter-spacing: var(--tracking-caption);
-      text-transform: uppercase;
-      padding: var(--spacing-5) var(--spacing-15);
-      border-radius: var(--radius-links);
-      border: 1px solid var(--color-ink);
-      color: var(--color-ink);
-    }
-
-    /* --- Navigation --- */
-    nav {
-      display: flex;
-      flex-wrap: wrap;
-      gap: var(--spacing-19);
-      padding-bottom: var(--spacing-19);
-      border-bottom: 1px solid var(--color-ash);
-      margin-bottom: var(--spacing-46);
-    }
-
-    nav a {
-      text-decoration: none;
-      font-size: var(--text-caption);
-      letter-spacing: var(--tracking-caption);
-      text-transform: uppercase;
-      padding: var(--spacing-5) 0;
-      border-bottom: 1px solid transparent;
-    }
-
-    nav a:hover,
-    nav a.active {
-      border-bottom-color: var(--color-ink);
-    }
-
-    /* --- Sections --- */
-    section {
-      background: var(--color-paper);
-      border-top: 1px solid var(--color-ash);
-      border-radius: var(--radius-cards);
-      padding: var(--spacing-46) var(--spacing-30);
-      margin-bottom: var(--spacing-76);
-      opacity: 0;
-      transform: translateY(16px);
-      transition: opacity 0.5s ease, transform 0.5s ease;
-    }
-
-    section.visible {
-      opacity: 1;
-      transform: translateY(0);
-    }
-
-    section .section-label {
-      font-size: var(--text-caption);
-      letter-spacing: var(--tracking-caption);
-      text-transform: uppercase;
-      color: var(--color-ink);
-      margin-bottom: var(--spacing-19);
-    }
-
-    section h2 {
-      font-family: var(--font-display);
-      font-weight: 400;
-      text-transform: uppercase;
-      font-size: var(--text-subheading);
-      line-height: var(--leading-subheading);
-      letter-spacing: var(--tracking-subheading);
-      margin-bottom: var(--spacing-19);
-    }
-
-    section p {
-      font-size: var(--text-body);
-      line-height: var(--leading-body);
-      letter-spacing: var(--tracking-body);
-      color: var(--color-ink);
-      margin-bottom: var(--spacing-15);
-      max-width: 60ch;
-    }
-
-    section p:last-of-type {
-      margin-bottom: 0;
-    }
-
-    /* --- Side-by-side cards (Training & Goals) --- */
-    .card-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 1px;
-      background: var(--color-ash);
-      margin-top: var(--spacing-19);
-      border: 1px solid var(--color-ash);
-    }
-
-    .info-card {
-      background: var(--color-paper);
-      padding: var(--spacing-19);
-    }
-
-    .info-card h3 {
-      font-family: var(--font-display);
-      font-weight: 700;
-      font-size: var(--text-body-sm);
-      letter-spacing: var(--tracking-body-sm);
-      text-transform: uppercase;
-      margin-bottom: var(--spacing-8);
-    }
-
-    .info-card p {
-      font-size: var(--text-body-sm);
-      line-height: var(--leading-body-sm);
-      letter-spacing: var(--tracking-body-sm);
-      margin-bottom: 0;
-      max-width: none;
-    }
-
-    @media (max-width: 600px) {
-      .card-grid {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    /* --- Ghost link --- */
-    .ghost-link {
-      display: inline-flex;
-      align-items: center;
-      gap: var(--spacing-5);
-      font-size: var(--text-body-sm);
-      letter-spacing: var(--tracking-body-sm);
-      color: var(--color-ink);
-      text-decoration: none;
-      border: 1px solid var(--color-ink);
-      border-radius: var(--radius-links);
-      padding: var(--spacing-8) var(--spacing-19);
-      transition: background 0.2s, color 0.2s;
-    }
-
-    .ghost-link:hover {
-      background: var(--color-ink);
-      color: var(--color-parchment);
-    }
-
-    /* --- Contact --- */
-    .contact-placeholder {
-      margin-top: var(--spacing-19);
-    }
-
-    /* --- Footer --- */
-    footer {
-      text-align: left;
-      margin-top: var(--spacing-46);
-      font-size: var(--text-caption);
-      letter-spacing: var(--tracking-caption);
-      text-transform: uppercase;
-      color: var(--color-ink);
-    }
-  </style>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <div class="page">
@@ -336,7 +16,7 @@
       <div class="ring ring--outer" aria-hidden="true"></div>
       <div class="ring ring--inner" aria-hidden="true"></div>
       <div class="sphere" aria-hidden="true"></div>
-      <p class="label">15 · Zurich · Builder</p>
+      <p class="label">15 · Zürich · Builder</p>
       <header>
         <h1>Leonard Lymbourides</h1>
         <p class="tagline">Learning, building, and training — one project and one rep at a time.</p>
@@ -349,75 +29,29 @@
         <span class="skill-pill">Mandarin (learning)</span>
         <span class="skill-pill">HTML/CSS</span>
         <span class="skill-pill">JavaScript</span>
-        <span class="skill-pill">AI-assisted development</span>
+        <span class="skill-pill">Firebase &amp; Firestore</span>
+        <span class="skill-pill">PWA development</span>
       </div>
     </div>
 
-    <nav aria-label="Page sections">
-      <a href="#now">Now</a>
-      <a href="#training">Training</a>
-      <a href="#goals">Goals</a>
-      <a href="#contact">Contact</a>
+    <nav aria-label="Site navigation">
+      <a href="index.html" class="active">Home</a>
+      <a href="work.html">Work</a>
+      <a href="about.html">About</a>
     </nav>
 
     <main>
       <section id="now">
-        <p class="section-label">01 — Now</p>
+        <p class="section-label">Now</p>
         <h2>Now</h2>
         <p>
-        Learning Mandarin with Duolingo, Pleco, and Anki. Building projects in Cursor — right now, this website. Looking into finance and language certificates next.
+          Currently building Flit, a mobile-first personal operating system, from architecture through to launch.
         </p>
-      </section>
-
-      <section id="training">
-        <p class="section-label">02 — Training</p>
-        <h2>Training</h2>
-        <p>
-          I stay active through a mix of strength work and running. Training keeps me disciplined and focused — it carries over into everything else I do.
-        </p>
-        <div class="card-grid">
-          <div class="info-card">
-            <h3>Gym</h3>
-            <p>
-              I follow a PPLUL split, training for strength and to support my running.
-              Consistency matters more than perfection.
-            </p>
-          </div>
-          <div class="info-card">
-            <h3>Running</h3>
-            <p>
-              Building a running habit to stay well-rounded and athletic.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <section id="goals">
-        <p class="section-label">03 — Goals</p>
-        <h2>Goals</h2>
-        <p>
-          Beyond sports and school, I'm focused on skills that will matter for years to come.
-        </p>
-        <div class="card-grid">
-          <div class="info-card">
-            <h3>Software building</h3>
-            <p>
-              Understand how apps and websites work, write real code, and solve problems
-              with technology.
-            </p>
-          </div>
-          <div class="info-card">
-            <h3>Business building</h3>
-            <p>
-              Turn ideas into something useful, understand how products reach people, and
-              create value.
-            </p>
-          </div>
-        </div>
+        <a class="ghost-link" href="work.html#flit">See what I've built <span aria-hidden="true">→</span></a>
       </section>
 
       <section id="contact">
-        <p class="section-label">04 — Contact</p>
+        <p class="section-label">Contact</p>
         <h2>Contact</h2>
         <p>Want to connect? Reach out anytime.</p>
         <div class="contact-placeholder">
@@ -432,27 +66,8 @@
   </div>
 
   <script>
-    // Highlight the nav link for whichever section is on screen
-    const sections = document.querySelectorAll("section");
-    const navLinks = document.querySelectorAll("nav a");
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            const id = entry.target.id;
-            navLinks.forEach((link) => {
-              link.classList.toggle("active", link.getAttribute("href") === "#" + id);
-            });
-          }
-        });
-      },
-      { rootMargin: "-40% 0px -50% 0px" }
-    );
-
-    sections.forEach((section) => observer.observe(section));
-
     // Fade sections in as you scroll down the page
+    const sections = document.querySelectorAll("section");
     const fadeObserver = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {

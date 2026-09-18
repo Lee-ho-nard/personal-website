@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Work — Leonard Lymbourides</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="page">
+    <div class="page-header">
+      <p class="label">Page 2</p>
+      <h1>Work</h1>
+    </div>
+
+    <nav aria-label="Site navigation">
+      <a href="index.html">Home</a>
+      <a href="work.html" class="active">Work</a>
+      <a href="about.html">About</a>
+    </nav>
+
+    <main>
+      <section>
+        <article class="project-card" id="flit">
+          <p class="section-label">Flit — Personal Operating System</p>
+          <h2>Flit</h2>
+          <p>
+            A mobile-first PWA daily planner, built from the ground up: onboarding, Firebase Auth and Firestore, a premium feature tier, push notifications. Currently in the final stretch before launch.
+          </p>
+          <dl class="meta-list">
+            <div>
+              <dt>Stack</dt>
+              <dd>Vanilla JS, Firebase, Capacitor (Android)</dd>
+            </div>
+            <div>
+              <dt>Status</dt>
+              <dd>Pre-launch</dd>
+            </div>
+          </dl>
+        </article>
+
+        <article class="project-card">
+          <p class="section-label">Client Work</p>
+          <h2>Premium Website Design</h2>
+          <p>
+            Capable of designing and building full, premium websites from scratch — custom design systems, typography, and layout, structured content sections, and multi-page builds. Comfortable working to the standard a real client would expect.
+          </p>
+          <p>
+            Most recently applied this to a six-page concept site for a consulting business — a full editorial design system, accordion services, and a structured methodology page.
+          </p>
+        </article>
+      </section>
+    </main>
+
+    <footer>
+      <p>Built with HTML, CSS, and JavaScript.</p>
+    </footer>
+  </div>
+
+  <script>
+    const sections = document.querySelectorAll("section");
+    const fadeObserver = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add("visible");
+          }
+        });
+      },
+      { threshold: 0.15 }
+    );
+
+    sections.forEach((section) => fadeObserver.observe(section));
+  </script>
+</body>
+</html>
