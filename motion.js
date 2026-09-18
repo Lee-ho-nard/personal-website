@@ -186,29 +186,4 @@
       updateScrollOrb();
     }
   }
-
-  // --- Directional page-swap tagging (View Transition Types API) ---
-  window.addEventListener("pageswap", (event) => {
-    if (!event.viewTransition || !event.activation) return;
-
-    const navOrder = ["index.html", "work.html", "about.html", "life.html"];
-    const pageName = (url) => {
-      try {
-        const file = new URL(url).pathname.split("/").pop();
-        return file || "index.html";
-      } catch (e) {
-        return "index.html";
-      }
-    };
-
-    const fromEntry = event.activation.from;
-    const toEntry = event.activation.entry;
-    if (!fromEntry || !toEntry) return;
-
-    const fromIndex = navOrder.indexOf(pageName(fromEntry.url));
-    const toIndex = navOrder.indexOf(pageName(toEntry.url));
-    if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) return;
-
-    event.viewTransition.types.add(toIndex > fromIndex ? "forward" : "back");
-  });
 })();

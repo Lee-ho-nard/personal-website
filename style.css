@@ -75,49 +75,25 @@
   navigation: auto;
 }
 
+/* Content cross-fades underneath — a plain fade (the browser's own
+   default old/new keyframes, just retimed), deliberately quieter and
+   shorter than the orb's own travel below so it never competes with it. */
 ::view-transition-old(root),
 ::view-transition-new(root) {
   animation-duration: var(--duration-base);
   animation-timing-function: var(--ease-standard);
+  animation-delay: 60ms; /* lets the orb start moving first */
 }
 
-/* Directional swipe — tagged on pageswap via the View Transition Types API.
-   The orb has no view-transition-name of its own (see .sphere), so it's
-   just part of these root snapshots and slides in lockstep with the rest
-   of the page content — one motion, not an independently-interpolated
-   travelling element. */
-html:active-view-transition-type(forward)::view-transition-old(root) {
-  animation: swipe-out-left var(--duration-base) var(--ease-standard) both;
-}
-
-html:active-view-transition-type(forward)::view-transition-new(root) {
-  animation: swipe-in-right var(--duration-base) var(--ease-standard) both;
-}
-
-html:active-view-transition-type(back)::view-transition-old(root) {
-  animation: swipe-out-right var(--duration-base) var(--ease-standard) both;
-}
-
-html:active-view-transition-type(back)::view-transition-new(root) {
-  animation: swipe-in-left var(--duration-base) var(--ease-standard) both;
-}
-
-@keyframes swipe-out-left {
-  to { transform: translateX(-40px); opacity: 0; }
-}
-
-@keyframes swipe-in-right {
-  from { transform: translateX(40px); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
-}
-
-@keyframes swipe-out-right {
-  to { transform: translateX(40px); opacity: 0; }
-}
-
-@keyframes swipe-in-left {
-  from { transform: translateX(-40px); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
+/* The orb travels its own independent path between pages (see .sphere's
+   view-transition-name) rather than being carried along inside the root
+   snapshot. --duration-slow (longer than the content fade above) plus
+   --ease-spring's overshoot keeps its motion from reading as a flat,
+   linear morph, and makes it the dominant, leading motion of the two. */
+::view-transition-group(hero-orb) {
+  animation-duration: var(--duration-slow);
+  animation-timing-function: var(--ease-spring);
+  animation-delay: 0s;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -125,6 +101,7 @@ html:active-view-transition-type(back)::view-transition-new(root) {
   ::view-transition-old(*),
   ::view-transition-new(*) {
     animation-duration: 1ms !important;
+    animation-delay: 0s !important;
   }
 }
 
@@ -183,9 +160,12 @@ a {
   background: var(--gradient-iridescent-sphere);
   z-index: 0;
   transform: translate(var(--orb-x, 0px), var(--orb-y, 0px));
-  /* Deliberately no view-transition-name: the orb should slide as part of
-     the root page content during navigation, not travel independently via
-     its own view-transition-group. See the directional swipe rules above. */
+  /* Shared across every page so cross-document navigation treats it as
+     one persistent element and travels it along its own path instead of
+     cross-fading it as part of the root snapshot. Its width/height are
+     never overridden per-page (only position is), so this is always a
+     pure move for ::view-transition-group(hero-orb) — never a resize. */
+  view-transition-name: hero-orb;
 }
 
 @media (prefers-reduced-motion: no-preference) {
