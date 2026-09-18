@@ -128,7 +128,6 @@
     const zigzagEls = Array.from(document.querySelectorAll(".zigzag"));
 
     if (frame && scrollSphere && footer) {
-      let scrollQueued = false;
       // .hero's resting spot bleeds -5px past .page-header's flush edge
       // (see --orb-rest-right in style.css) — needed here to reconstruct
       // the same natural center in JS.
@@ -164,6 +163,33 @@
       }
 
       const EDGE_MARGIN = 70;
+      // How much of the raw, freshly-computed target to move toward each
+      // frame (0-1). Applied to both the S-curve's x-position and the
+      // breathing scale so they glide rather than snap — the raw target
+      // can jump between frames (a new element entering/leaving the orb's
+      // band, or the anchor handing off between sections), and this is
+      // what turns that into a continuous, single-direction-at-a-time
+      // motion instead of a visible jump or backtrack.
+      const WEAVE_LERP = 0.12;
+      // +/-25% size swing — big enough to actually notice while scrolling
+      // at a normal pace, not just on a before/after screenshot.
+      const BREATHE_AMPLITUDE = 0.25;
+      // Distance the weave fades in over at the very top of the page, so
+      // the orb starts dead-center in the rings at load rather than
+      // popping straight to a lean. Deliberately short and NOT tied to
+      // the header's own height: safeRangeAt's bounds below are a hard
+      // measurement of the orb's real current band, never faded, so if
+      // this ramp were still running by the time a section's text
+      // actually got close, the clamp would yank the still-suppressed
+      // preferred value up to the full safe position in one frame — the
+      // "double back" jump this fixes. 60px is long enough to not read as
+      // a pop, short enough that it's always finished well before any
+      // real section could reach the orb's band.
+      const WEAVE_INTRO_DISTANCE = 60;
+      // The safety clamp below has to assume the largest the orb could
+      // possibly render at (see orbHalfWidthSafe) so a bigger breathing
+      // swing needs a correspondingly bigger safety allowance here.
+      const BREATHE_SAFETY_FACTOR = 1 + BREATHE_AMPLITUDE;
 
       // Where the orb should sit while a given zigzag element is the one
       // in view, as a --scroll-x offset from its natural resting center.
@@ -263,8 +289,20 @@
         return 0;
       }
 
-      function updateScrollOrb() {
-        scrollQueued = false;
+      // Persisted across frames so x-position and scale can glide toward
+      // their freshly-computed targets (see WEAVE_LERP) instead of
+      // snapping to them. Both start at their exact rest values (0 offset,
+      // no breathe) rather than null-snapping to whatever the first tick's
+      // raw target happens to be — that would either match the CSS resting
+      // position by luck or pop straight to an offset on the very first
+      // frame with nothing to ease from. Starting at rest and letting the
+      // lerp ease in from there, the same way it eases every later target
+      // change, is what actually keeps the orb dead-center in the rings at
+      // load and gliding smoothly into its first lean.
+      let currentWeaveX = 0;
+      let currentBreatheScale = 1;
+
+      function tickScrollOrb() {
         const frameHeight = frame.offsetHeight || 1;
         const scrollY = window.scrollY;
         const progress = Math.min(1, Math.max(0, scrollY / frameHeight));
@@ -280,38 +318,66 @@
         const baseWidth = Math.min(320, window.innerWidth * 0.55);
         const frameRect = frame.getBoundingClientRect();
         const naturalCenterX = frameRect.right - restRightTweak - baseWidth / 2;
-        // The "breathing" resize below (up to +/-6%) is computed from the
-        // weave position itself, which is circular — the weave's own safe
-        // clearance depends on how big the orb is. Sizing the safety
-        // clearance for the largest the orb could possibly breathe up to
-        // keeps the overlap guarantee intact no matter what the real,
-        // possibly-smaller breathed size ends up being.
-        const orbHalfWidthSafe = (baseWidth * scale * 1.06) / 2;
+        // The breathing resize below is computed from the weave position
+        // itself, which is circular — the weave's own safe clearance
+        // depends on how big the orb is. Sizing the safety clearance for
+        // the largest the orb could possibly breathe up to keeps the
+        // overlap guarantee intact no matter what the real, possibly-
+        // smaller breathed size ends up being.
+        const orbHalfWidthSafe = (baseWidth * scale * BREATHE_SAFETY_FACTOR) / 2;
 
-        // Fades the weave in only after the header has been scrolled past,
-        // so the orb still sits dead-center in the rings at load (progress
-        // 0) regardless of where the nearest zigzag element happens to be.
-        const preferredWeaveX = currentWeaveTarget(naturalCenterX, orbHalfWidthSafe) * progress;
+        // Fades the weave in over WEAVE_INTRO_DISTANCE only — not over the
+        // header's full height like the scale/drift above. See
+        // WEAVE_INTRO_DISTANCE's own comment for why that distinction
+        // matters: it used to share `progress`, which is what let the
+        // safety clamp below yank an unrelated-but-still-fading-in value
+        // straight to full strength once a section's text got close.
+        const weaveIntro = Math.min(1, scrollY / WEAVE_INTRO_DISTANCE);
+        const preferredWeaveX = currentWeaveTarget(naturalCenterX, orbHalfWidthSafe) * weaveIntro;
 
-        // Clamp the anchor-based preference against every element actually
-        // overlapping the orb's own band right now (see safeRangeAt above) —
-        // the anchor/blend picks a nice-looking position, but only this
-        // clamp guarantees it never overlaps text that happens to still be
-        // physically alongside the orb.
+        // The raw, this-instant target: the anchor/blend's preference,
+        // clamped against every element actually overlapping the orb's
+        // band right now (see safeRangeAt above). This can still jump
+        // between frames — a new element entering/leaving the band, or
+        // the anchor/blend handing off between sections — which is exactly
+        // what the lerp below smooths out.
+        // A text-safety bound can demand a lean larger than the viewport
+        // itself once a paragraph is wide relative to a narrow window —
+        // clearing the text would otherwise push the orb's center clean
+        // past the viewport edge, making it fully invisible. An orb that's
+        // safely clear of the text but not actually on screen isn't
+        // "safe," it's just gone, so this bound wins when the two conflict.
+        const maxCenterBleed = orbHalfWidthSafe * 0.5;
+        const viewportLower = -maxCenterBleed - naturalCenterX;
+        const viewportUpper = window.innerWidth + maxCenterBleed - naturalCenterX;
+
         const { lower, upper } = safeRangeAt(prevRect.top, prevRect.bottom, naturalCenterX, orbHalfWidthSafe);
-        const weaveX = lower <= upper
-          ? Math.min(upper, Math.max(lower, preferredWeaveX))
-          : (lower + upper) / 2;
+        const boundedLower = Math.max(lower, viewportLower);
+        const boundedUpper = Math.min(upper, viewportUpper);
+        const rawWeaveX = boundedLower <= boundedUpper
+          ? Math.min(boundedUpper, Math.max(boundedLower, preferredWeaveX))
+          : (viewportLower + viewportUpper) / 2;
 
-        // Subtle "breathing": lean further toward a text block (larger
-        // |weaveX|) reads as tighter space, so the orb shrinks slightly;
-        // near its natural center (weaveX ~ 0) it's in open space, so it
-        // grows slightly. Driven by the same weave value as the S-curve
-        // itself, so it reads as one fluid movement rather than a separate
-        // pulsing effect.
+        currentWeaveX += (rawWeaveX - currentWeaveX) * WEAVE_LERP;
+        // Hard safety net, applied after smoothing: the lerp glides toward
+        // a moving target, so it can briefly lag on the wrong side of a
+        // *newly tightened* bound — this makes sure what actually renders
+        // is never outside this frame's own measured-safe range, whatever
+        // the smoothed value was heading toward.
+        const weaveX = boundedLower <= boundedUpper
+          ? Math.min(boundedUpper, Math.max(boundedLower, currentWeaveX))
+          : (viewportLower + viewportUpper) / 2;
+        currentWeaveX = weaveX;
+
+        // Breathing: near its natural center (small weave offset) the orb
+        // reads as being in open space and grows; leaning hard toward a
+        // text block, it shrinks. Driven by the same weave value as the
+        // S-curve itself, so size and position move as one motion — and
+        // lerped by the same rate so they settle together, too.
         const openness = 1 - Math.min(1, Math.abs(weaveX) / 220);
-        const breathe = 1 + (openness - 0.5) * 0.12;
-        const finalScale = scale * breathe;
+        const rawBreathe = 1 + (openness - 0.5) * (BREATHE_AMPLITUDE * 2);
+        currentBreatheScale += (rawBreathe - currentBreatheScale) * WEAVE_LERP;
+        const finalScale = scale * currentBreatheScale;
 
         // Fades out only in the real final stretch before the footer, never
         // while any zigzag content is still on screen — using a fixed
@@ -330,19 +396,15 @@
         scrollSphere.style.setProperty("--scroll-y", drift.toFixed(1) + "px");
         scrollSphere.style.setProperty("--scroll-x", weaveX.toFixed(1) + "px");
         scrollSphere.style.setProperty("--scroll-opacity", (1 - fadeProgress).toFixed(3));
+
+        requestAnimationFrame(tickScrollOrb);
       }
 
-      function queueScrollUpdate() {
-        if (!scrollQueued) {
-          scrollQueued = true;
-          requestAnimationFrame(updateScrollOrb);
-        }
-      }
-
-      window.addEventListener("scroll", queueScrollUpdate, { passive: true });
-      window.addEventListener("resize", queueScrollUpdate, { passive: true });
-
-      updateScrollOrb();
+      // Runs continuously (like the cursor-follow tick above) rather than
+      // only on scroll/resize events, so the lerp above always has a
+      // chance to keep gliding toward its target and fully settle even
+      // after the user stops scrolling mid-transition.
+      tickScrollOrb();
     }
   }
 })();
