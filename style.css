@@ -81,12 +81,11 @@
   animation-timing-function: var(--ease-standard);
 }
 
-::view-transition-group(hero-orb) {
-  animation-duration: var(--duration-slow);
-  animation-timing-function: var(--ease-standard);
-}
-
-/* Directional swipe — tagged on pageswap via the View Transition Types API */
+/* Directional swipe — tagged on pageswap via the View Transition Types API.
+   The orb has no view-transition-name of its own (see .sphere), so it's
+   just part of these root snapshots and slides in lockstep with the rest
+   of the page content — one motion, not an independently-interpolated
+   travelling element. */
 html:active-view-transition-type(forward)::view-transition-old(root) {
   animation: swipe-out-left var(--duration-base) var(--ease-standard) both;
 }
@@ -183,7 +182,9 @@ a {
   background: var(--gradient-iridescent-sphere);
   z-index: 0;
   transform: translate(var(--orb-x, 0px), var(--orb-y, 0px));
-  view-transition-name: hero-orb;
+  /* Deliberately no view-transition-name: the orb should slide as part of
+     the root page content during navigation, not travel independently via
+     its own view-transition-group. See the directional swipe rules above. */
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -387,8 +388,7 @@ nav a.active::after {
 
 /* The orb here is the exact same element/size as the Home hero's — only
    its position differs, sitting flush inside the page column (no negative
-   offset, so nothing bleeds past the header's own box and needs cropping).
-   Still the same hero-orb view-transition target, so it's a pure move. */
+   offset, so nothing bleeds past the header's own box and needs cropping). */
 .page-header .sphere {
   top: 0;
   right: 0;
