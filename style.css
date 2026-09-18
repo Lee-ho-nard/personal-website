@@ -59,10 +59,17 @@
      to keep the fixed-position orb aligned with hero-relative content
      across breakpoints without duplicating this math in JS. */
   --page-edge-right: calc(max(0px, (100vw - var(--page-max-width)) / 2) + var(--spacing-30));
-  /* Vertical gap before every zigzag section after the first, giving the
-     scroll-linked orb's S-curve genuine room to swing between the left/
-     right alternation rather than feeling rushed (see .zigzag below). */
-  --zigzag-gap: 360px;
+  /* Vertical gap before every zigzag section after the first. Sized for
+     normal page rhythm rather than stretched out for the orb's sake, but
+     with one hard floor: the orb's own fixed vertical band (roughly its
+     full receded diameter, ~220px — see updateScrollOrb in motion.js) must
+     never be tall enough to simultaneously touch two consecutive zigzag
+     elements' text at once, or there'd be no single X position that
+     clears both an already-passed left-aligned block and an approaching
+     right-aligned one (or vice versa) at the same time. This gap (plus a
+     margin) clears that band height, verified via getBoundingClientRect
+     sweeps across every zigzag transition on every page, not assumed. */
+  --zigzag-gap: 240px;
 
   /* Motion */
   --duration-fast: 150ms;

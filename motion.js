@@ -23,15 +23,32 @@
       let currentX = 0;
       let currentY = 0;
 
-      frame.addEventListener("pointermove", (e) => {
-        const rect = frame.getBoundingClientRect();
-        const fx = ((e.clientX - rect.left) / rect.width) * 2 - 1; // -1..1
-        const fy = ((e.clientY - rect.top) / rect.height) * 2 - 1;
-        targetX = Math.max(-1, Math.min(1, fx)) * followDistance;
-        targetY = Math.max(-1, Math.min(1, fy)) * followDistance;
-      });
+      // Listens on window, not .orb-frame: .orb-frame is a normal block at
+      // the top of the document, so once the page scrolls its box (and
+      // therefore its pointermove hit area) scrolls away too, even though
+      // .sphere itself stays fixed in the viewport. Using the sphere's own
+      // live rect as the reference point keeps this working at any scroll
+      // position, gated to a radius around the orb so distant cursor
+      // positions elsewhere on a tall page don't pull it around.
+      window.addEventListener("pointermove", (e) => {
+        const rect = sphere.getBoundingClientRect();
+        const cx = rect.left + rect.width / 2;
+        const cy = rect.top + rect.height / 2;
+        const dx = e.clientX - cx;
+        const dy = e.clientY - cy;
+        const dist = Math.hypot(dx, dy);
+        const radius = Math.max(rect.width, rect.height) * 1.5;
+        if (dist < 1 || dist > radius) {
+          targetX = 0;
+          targetY = 0;
+          return;
+        }
+        const pull = 1 - dist / radius;
+        targetX = (dx / dist) * followDistance * pull;
+        targetY = (dy / dist) * followDistance * pull;
+      }, { passive: true });
 
-      frame.addEventListener("pointerleave", () => {
+      window.addEventListener("pointerleave", () => {
         targetX = 0;
         targetY = 0;
       });
@@ -146,6 +163,8 @@
         return { left, right };
       }
 
+      const EDGE_MARGIN = 70;
+
       // Where the orb should sit while a given zigzag element is the one
       // in view, as a --scroll-x offset from its natural resting center.
       // Right-aligned elements now occupy the orb's own resting corner, so
@@ -153,20 +172,48 @@
       // -aligned elements never conflict with that corner, so the orb only
       // leans partway toward them for the weave, well inside the safe range.
       function targetFor(el, isRightAligned, naturalCenterX, orbHalfWidth) {
-        const margin = 70;
         const edges = textEdges(el);
         const hasText = isFinite(edges.left) && isFinite(edges.right);
 
         if (isRightAligned) {
           if (!hasText) return 0;
-          const maxAllowed = edges.left - margin - orbHalfWidth - naturalCenterX;
+          const maxAllowed = edges.left - EDGE_MARGIN - orbHalfWidth - naturalCenterX;
           return Math.min(0, maxAllowed);
         }
 
         if (!hasText) return -80;
-        const minAllowed = edges.right + margin + orbHalfWidth - naturalCenterX;
+        const minAllowed = edges.right + EDGE_MARGIN + orbHalfWidth - naturalCenterX;
         const lean = minAllowed * 0.7;
         return Math.max(minAllowed, Math.min(0, lean));
+      }
+
+      // The anchor-based weave above picks exactly one "owning" element (or
+      // blends between two neighbors) based on scroll position alone. That
+      // was safe when sections were spaced far apart, because by the time
+      // the anchor moved on to a neighbor, the previous element had long
+      // since scrolled clear of the orb's own fixed vertical band. With a
+      // normally-paced gap, a section can still be physically within that
+      // band even after the anchor and the blend have moved past it — so
+      // the weave's preferred position also needs clamping against every
+      // element that's ACTUALLY overlapping the orb's band right now, not
+      // just the one the anchor currently designates. Left-aligned
+      // elements impose a floor (don't drift further left than this);
+      // right-aligned ones impose a ceiling (don't drift further right).
+      function safeRangeAt(orbTop, orbBottom, naturalCenterX, orbHalfWidth) {
+        let lower = -Infinity;
+        let upper = Infinity;
+        zigzagEls.forEach((el, i) => {
+          const rect = el.getBoundingClientRect();
+          if (rect.bottom < orbTop || rect.top > orbBottom) return;
+          const edges = textEdges(el);
+          if (!isFinite(edges.left)) return;
+          if (i % 2 === 1) {
+            upper = Math.min(upper, edges.left - EDGE_MARGIN - orbHalfWidth - naturalCenterX);
+          } else {
+            lower = Math.max(lower, edges.right + EDGE_MARGIN + orbHalfWidth - naturalCenterX);
+          }
+        });
+        return { lower, upper };
       }
 
       // Which zigzag element the viewport is currently over, and — only in
@@ -224,23 +271,62 @@
         const scale = 1 - progress * 0.35; // recede as you scroll past the header
         const drift = -progress * 40; // px, drifts up slightly toward its resting slot
 
+        // The orb's own rendered band from the last applied frame — one
+        // frame stale, negligible against a scroll-driven position that
+        // only moves a few px between frames — used below to find which
+        // elements it's actually next to right now (see safeRangeAt).
+        const prevRect = scrollSphere.getBoundingClientRect();
+
         const baseWidth = Math.min(320, window.innerWidth * 0.55);
         const frameRect = frame.getBoundingClientRect();
         const naturalCenterX = frameRect.right - restRightTweak - baseWidth / 2;
-        const orbHalfWidth = (baseWidth * scale) / 2;
+        // The "breathing" resize below (up to +/-6%) is computed from the
+        // weave position itself, which is circular — the weave's own safe
+        // clearance depends on how big the orb is. Sizing the safety
+        // clearance for the largest the orb could possibly breathe up to
+        // keeps the overlap guarantee intact no matter what the real,
+        // possibly-smaller breathed size ends up being.
+        const orbHalfWidthSafe = (baseWidth * scale * 1.06) / 2;
 
         // Fades the weave in only after the header has been scrolled past,
         // so the orb still sits dead-center in the rings at load (progress
         // 0) regardless of where the nearest zigzag element happens to be.
-        const weaveX = currentWeaveTarget(naturalCenterX, orbHalfWidth) * progress;
+        const preferredWeaveX = currentWeaveTarget(naturalCenterX, orbHalfWidthSafe) * progress;
 
+        // Clamp the anchor-based preference against every element actually
+        // overlapping the orb's own band right now (see safeRangeAt above) —
+        // the anchor/blend picks a nice-looking position, but only this
+        // clamp guarantees it never overlaps text that happens to still be
+        // physically alongside the orb.
+        const { lower, upper } = safeRangeAt(prevRect.top, prevRect.bottom, naturalCenterX, orbHalfWidthSafe);
+        const weaveX = lower <= upper
+          ? Math.min(upper, Math.max(lower, preferredWeaveX))
+          : (lower + upper) / 2;
+
+        // Subtle "breathing": lean further toward a text block (larger
+        // |weaveX|) reads as tighter space, so the orb shrinks slightly;
+        // near its natural center (weaveX ~ 0) it's in open space, so it
+        // grows slightly. Driven by the same weave value as the S-curve
+        // itself, so it reads as one fluid movement rather than a separate
+        // pulsing effect.
+        const openness = 1 - Math.min(1, Math.abs(weaveX) / 220);
+        const breathe = 1 + (openness - 0.5) * 0.12;
+        const finalScale = scale * breathe;
+
+        // Fades out only in the real final stretch before the footer, never
+        // while any zigzag content is still on screen — using a fixed
+        // fraction of the viewport height here instead assumed the page was
+        // a certain length, and clipped into the last section's visibility
+        // on shorter pages once the zigzag gap was tightened up.
+        const zigzagBottoms = zigzagEls.map((el) => el.getBoundingClientRect().bottom + scrollY);
+        const lastContentBottom = zigzagBottoms.length ? Math.max(...zigzagBottoms) : 0;
         const footerTop = footer.getBoundingClientRect().top + scrollY;
-        const fadeStart = footerTop - window.innerHeight * 1.2;
-        const fadeEnd = footerTop - window.innerHeight * 0.4;
+        const fadeEnd = Math.max(lastContentBottom + 1, footerTop - window.innerHeight * 0.15);
+        const fadeStart = Math.max(lastContentBottom, fadeEnd - window.innerHeight * 0.5);
         const fadeRange = Math.max(1, fadeEnd - fadeStart);
         const fadeProgress = Math.min(1, Math.max(0, (scrollY - fadeStart) / fadeRange));
 
-        scrollSphere.style.setProperty("--scroll-scale", scale.toFixed(3));
+        scrollSphere.style.setProperty("--scroll-scale", finalScale.toFixed(3));
         scrollSphere.style.setProperty("--scroll-y", drift.toFixed(1) + "px");
         scrollSphere.style.setProperty("--scroll-x", weaveX.toFixed(1) + "px");
         scrollSphere.style.setProperty("--scroll-opacity", (1 - fadeProgress).toFixed(3));
