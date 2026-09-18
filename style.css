@@ -70,6 +70,30 @@
   --magnetic-strength: 0.3;
 }
 
+/* --- Cross-document view transitions --- */
+@view-transition {
+  navigation: auto;
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: var(--duration-base);
+  animation-timing-function: var(--ease-standard);
+}
+
+::view-transition-group(hero-orb) {
+  animation-duration: var(--duration-slow);
+  animation-timing-function: var(--ease-standard);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation-duration: 1ms !important;
+  }
+}
+
 *,
 *::before,
 *::after {
@@ -121,6 +145,7 @@ a {
   background: var(--gradient-iridescent-sphere);
   z-index: 0;
   transform: translate(var(--orb-x, 0px), var(--orb-y, 0px));
+  view-transition-name: hero-orb;
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -283,8 +308,9 @@ nav a.active::after {
   transform: scaleX(1);
 }
 
-/* --- Page header (Work / About) --- */
+/* --- Page header (Work / About / Life) --- */
 .page-header {
+  position: relative;
   padding: var(--spacing-46) 0 var(--spacing-30);
 }
 
@@ -295,6 +321,26 @@ nav a.active::after {
   font-size: var(--text-heading-sm);
   line-height: var(--leading-heading-sm);
   letter-spacing: var(--tracking-heading-sm);
+}
+
+/* Small orb badge carried over from the hero — anchors the hero-orb
+   view transition so the sphere morphs across pages instead of
+   hard-cutting, rather than repeating the gradient as a full accent. */
+.page-orb {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--gradient-iridescent-sphere);
+  view-transition-name: hero-orb;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .page-orb {
+    animation: orb-hue-drift var(--duration-orb) linear infinite;
+  }
 }
 
 /* --- Sections --- */

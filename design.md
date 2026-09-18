@@ -116,7 +116,12 @@ Motion is restrained the same way color is: a small, fixed vocabulary reused eve
 ### Hero Gradient Sphere
 **Role:** Signature brand visual — the only chromatic element on the site
 
-Large circular form (roughly 50% of viewport height) positioned slightly right-of-center, filled with the iridescent gradient (yellow → pink → blue → white at 255deg). Sits behind display text, partially overlapping. Functions as brand beacon and atmospheric anchor. No border, no shadow. Carries two simultaneous, independent motion layers: a barely-perceptible ambient hue drift (`--duration-orb`, linear, continuous) and, on fine-pointer devices only, a restrained cursor-follow drift (`--orb-follow-distance`, `--orb-follow-lerp`) that trails the pointer rather than snapping to it and eases back to rest when the cursor leaves. Never a spin, never a hard follow, never anything attention-grabbing.
+Large circular form (roughly 50% of viewport height) positioned slightly right-of-center, filled with the iridescent gradient (yellow → pink → blue → white at 255deg). Sits behind display text, partially overlapping. Functions as brand beacon and atmospheric anchor. No border, no shadow. Carries two simultaneous, independent motion layers: a barely-perceptible ambient hue drift (`--duration-orb`, linear, continuous) and, on fine-pointer devices only, a restrained cursor-follow drift (`--orb-follow-distance`, `--orb-follow-lerp`) that trails the pointer rather than snapping to it and eases back to rest when the cursor leaves. Never a spin, never a hard follow, never anything attention-grabbing. Shares a `view-transition-name` with the small page-header orb badge (see Cross-Page Orb Transition) so it morphs rather than cuts when navigating away from Home.
+
+### Cross-Page Orb Transition
+**Role:** Native browser-driven continuity between pages — the one exception to "the gradient appears once, in the hero"
+
+The hero sphere (`.sphere`, Home) and a small 56px badge (`.page-orb`, top-right of the page-header on Work/About/Life) share `view-transition-name: hero-orb`. Site-wide `@view-transition { navigation: auto; }` opts every page into cross-document view transitions, so the browser — not JS — morphs the orb's position and size automatically when navigating via the nav bar, while the rest of the page content cross-fades using `::view-transition-old(root)`/`::view-transition-new(root)`. The orb's group animation uses `--duration-slow`/`--ease-standard`; the root cross-fade uses `--duration-base`/`--ease-standard`. Unsupported browsers ignore the at-rule and the property entirely and fall back to a normal, instant navigation — no feature-detection script needed, since that fallback is CSS's own forward-compatible parsing behavior. `prefers-reduced-motion: reduce` collapses every view-transition animation to near-instant.
 
 ### Display Headline
 **Role:** Primary typographic statement — the page's main expressive element
@@ -232,7 +237,7 @@ Full-viewport hero with centered/left-aligned display text overlapping a large g
 
 ## Gradient System
 
-The iridescent sphere gradient is a singleton, not a system. It appears exactly once on any given page — in the hero — and never repeats as a smaller accent, button gradient, or section background. The 255deg angle is fixed: yellow (rgb 250,203,14) at the top-right, pink (rgb 240,107,168) at 30%, blue (rgb 120,186,230) at 65%, dissolving to white at the end. This is the only color event in an otherwise achromatic system; treating it as a reusable token would dilute its impact.
+The iridescent sphere gradient is a singleton, not a system. It appears exactly once on any given page — in the hero on Home, or as the small `.page-orb` badge in the page-header elsewhere — and never repeats as a button gradient, section background, or general-purpose accent. The one deliberate exception is the `.page-orb` badge itself: it exists solely as the cross-document view-transition anchor (see Cross-Page Orb Transition) so the hero orb has something to morph into/from when navigating, not as a recurring decorative accent. The 255deg angle is fixed: yellow (rgb 250,203,14) at the top-right, pink (rgb 240,107,168) at 30%, blue (rgb 120,186,230) at 65%, dissolving to white at the end. This is the only color event in an otherwise achromatic system; treating it as a reusable token would dilute its impact.
 
 ## Typography Voice
 
