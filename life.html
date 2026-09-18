@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Life — Leonard Lymbourides</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="page">
+    <div class="page-header">
+      <p class="label">Page 4</p>
+      <h1>Life</h1>
+    </div>
+
+    <nav aria-label="Site navigation">
+      <a href="index.html">Home</a>
+      <a href="work.html">Work</a>
+      <a href="about.html">About</a>
+      <a href="life.html" class="active">Life</a>
+    </nav>
+
+    <main>
+      <section class="reveal">
+        <div class="about-block">
+          <p class="section-label">Languages</p>
+          <p>
+            I speak German, English, and French, and I'm learning Mandarin — through daily practice with Duolingo, Pleco, and Anki. Four languages isn't just a skill tag for me; it's the same logic as the small businesses: if something's worth having, it's worth building the habit for, one rep at a time.
+          </p>
+        </div>
+
+        <div class="about-block">
+          <p class="section-label">Training</p>
+          <p>
+            Outside of building, I stay active through running and the gym — training regularly, five to six times a week, working toward a half-marathon. I also play tennis and padel when I get the chance. None of it is really about the sport itself; it's the same discipline that shows up in building something every day whether or not anyone's watching.
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <p>Built with HTML, CSS, and JavaScript.</p>
+    </footer>
+  </div>
+
+  <script>
+    const revealEls = document.querySelectorAll(".reveal");
+    const revealObserver = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add("visible");
+            revealObserver.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.15 }
+    );
+
+    revealEls.forEach((el) => revealObserver.observe(el));
+  </script>
+  <script src="motion.js"></script>
+</body>
+</html>

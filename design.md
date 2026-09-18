@@ -101,12 +101,22 @@ Motion is restrained the same way color is: a small, fixed vocabulary reused eve
 |------|-------|-------|------|
 | stagger step | 75ms | `--stagger-step` | Offset between successive elements in an orchestrated sequence (hero entrance, staggered skill tags) |
 
+### Cursor Interaction
+
+| Name | Value | Token | Role |
+|------|-------|-------|------|
+| orb follow distance | 14px | `--orb-follow-distance` | Max drift of the hero sphere toward the cursor — restrained, never a full follow |
+| orb follow lerp | 0.08 | `--orb-follow-lerp` | Per-frame smoothing factor (0–1) that makes the sphere trail the cursor instead of snapping to it |
+| magnetic radius | 70px | `--magnetic-radius` | Proximity radius around a magnetic element within which it begins pulling toward the cursor |
+| magnetic strength | 0.3 | `--magnetic-strength` | Max fraction (0–1) of cursor offset applied as pull — closer cursor = stronger pull, capped here |
+| spring | `cubic-bezier(0.34, 1.56, 0.64, 1)` | `--ease-spring` | Snap-back curve for magnetic elements releasing the cursor — the system's one eased-with-overshoot curve, reserved for this release moment only |
+
 ## Components
 
 ### Hero Gradient Sphere
 **Role:** Signature brand visual — the only chromatic element on the site
 
-Large circular form (roughly 50% of viewport height) positioned slightly right-of-center, filled with the iridescent gradient (yellow → pink → blue → white at 255deg). Sits behind display text, partially overlapping. Functions as brand beacon and atmospheric anchor. No border, no shadow, no interaction state beyond a barely-perceptible ambient hue drift (`--duration-orb`, `--ease-standard` where eased, otherwise linear for the continuous loop) — never a spin or anything attention-grabbing.
+Large circular form (roughly 50% of viewport height) positioned slightly right-of-center, filled with the iridescent gradient (yellow → pink → blue → white at 255deg). Sits behind display text, partially overlapping. Functions as brand beacon and atmospheric anchor. No border, no shadow. Carries two simultaneous, independent motion layers: a barely-perceptible ambient hue drift (`--duration-orb`, linear, continuous) and, on fine-pointer devices only, a restrained cursor-follow drift (`--orb-follow-distance`, `--orb-follow-lerp`) that trails the pointer rather than snapping to it and eases back to rest when the cursor leaves. Never a spin, never a hard follow, never anything attention-grabbing.
 
 ### Display Headline
 **Role:** Primary typographic statement — the page's main expressive element
@@ -116,7 +126,7 @@ Ataero Retina OB, weight 400, 70–103px, line-height 0.80, letter-spacing ~0.01
 ### Ghost Text Link
 **Role:** Primary interactive element — replaces the conventional button
 
-Ataero Retina OB, 15px, weight 400, Ink (#1d1d1d) text. No background fill. 10px border-radius on the hit area. Often accompanied by a small arrow glyph (→). Padding 5px vertical, 0 horizontal. Underline or arrow reveals affordance on hover. This is the only clickable element style in the system. Hover transitions (fill, arrow nudge) use `--duration-base` and `--ease-standard`.
+Ataero Retina OB, 15px, weight 400, Ink (#1d1d1d) text. No background fill. 10px border-radius on the hit area. Often accompanied by a small arrow glyph (→). Padding 5px vertical, 0 horizontal. Underline or arrow reveals affordance on hover. This is the only clickable element style in the system. Hover transitions (fill, arrow nudge) use `--duration-base` and `--ease-standard`. On fine-pointer devices, ghost links and nav items are also magnetic: within `--magnetic-radius` of the cursor they pull toward it (scaled by `--magnetic-strength`), releasing with `--ease-spring` when the cursor moves away. Falls back to the plain hover states with no pointer or under reduced motion.
 
 ### Section Label
 **Role:** Micro-typography for section identification — museum-signage style
@@ -165,6 +175,8 @@ Pill-shaped ghost button: Ink border 1px, 10px radius, padding 8px 19px. Ataero 
 - Maintain the monochrome discipline: if a screen needs more than the parchment/ink/white/ash palette, reassess the design before adding color
 - Pull every animation duration and curve from the Motion tokens (`--duration-*`, `--ease-standard`, `--stagger-step`) instead of one-off values
 - Respect `prefers-reduced-motion: reduce` on every animation — drop the transform, keep a near-instant fade
+- Gate cursor-reactive motion (orb follow, magnetic elements) behind `(hover: hover) and (pointer: fine)` — these effects don't exist on touch
+- Drive per-frame cursor-follow position updates with `requestAnimationFrame`, never directly in a raw `mousemove`/`pointermove` handler
 
 ### Don't
 - Do not introduce a second typeface family — Ataero Retina OB is the sole voice
@@ -175,6 +187,7 @@ Pill-shaped ghost button: Ink border 1px, 10px radius, padding 8px 19px. Ataero 
 - Do not center-align body paragraphs — body copy reads left-aligned, always
 - Do not round card or image containers — cards are sharp-cornered (0px); only interactive elements get 10px radius
 - Do not let the hero sphere's ambient motion read as a spin or attention-grabbing effect — it stays barely perceptible
+- Do not let the cursor-follow orb or magnetic elements snap directly to the pointer — always ease/lerp, and cap the travel distance
 
 ## Surfaces
 
@@ -324,9 +337,16 @@ Ataero Retina OB Edition is a custom font — not available on Google Fonts or A
 
   /* Motion — Easing */
   --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 
   /* Motion — Stagger */
   --stagger-step: 75ms;
+
+  /* Motion — Cursor Interaction */
+  --orb-follow-distance: 14px;
+  --orb-follow-lerp: 0.08;
+  --magnetic-radius: 70px;
+  --magnetic-strength: 0.3;
 }
 ```
 
@@ -396,8 +416,15 @@ Ataero Retina OB Edition is a custom font — not available on Google Fonts or A
 
   /* Motion — Easing */
   --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 
   /* Motion — Stagger */
   --stagger-step: 75ms;
+
+  /* Motion — Cursor Interaction */
+  --orb-follow-distance: 14px;
+  --orb-follow-lerp: 0.08;
+  --magnetic-radius: 70px;
+  --magnetic-strength: 0.3;
 }
 ```
