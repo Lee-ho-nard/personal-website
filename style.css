@@ -53,6 +53,16 @@
   --radius-links: 10px;
 
   --page-max-width: 1400px;
+  /* Distance from the viewport's right edge to .page's own right content
+     edge — constant page padding below the max-width, plus .page's own
+     centering margin once the viewport exceeds max-width + padding. Used
+     to keep the fixed-position orb aligned with hero-relative content
+     across breakpoints without duplicating this math in JS. */
+  --page-edge-right: calc(max(0px, (100vw - var(--page-max-width)) / 2) + var(--spacing-30));
+  /* Vertical gap before every zigzag section after the first, giving the
+     scroll-linked orb's S-curve genuine room to swing between the left/
+     right alternation rather than feeling rushed (see .zigzag below). */
+  --zigzag-gap: 360px;
 
   /* Motion */
   --duration-fast: 150ms;
@@ -144,6 +154,11 @@ a {
   position: relative;
   padding: var(--spacing-76) 0 var(--spacing-46);
   overflow: hidden;
+  /* The orb's fixed resting spot (see .orb-frame .sphere): ring-aligned,
+     bled slightly above/right of the viewport, matching the absolute
+     .sphere rule's own -60/-5 position at scroll 0. */
+  --orb-rest-top: -14px;
+  --orb-rest-right: calc(var(--page-edge-right) - 5px);
 }
 
 .sphere {
@@ -173,20 +188,21 @@ a {
     animation: orb-hue-drift var(--duration-orb) linear infinite;
   }
 
-  /* Home only: the orb persists in the viewport while scrolling instead
-     of scrolling away with the hero, subtly receding via scroll progress
-     (see motion.js). top/right reproduce the same ring-centered resting
-     spot as the absolute version above, converted to viewport coordinates
-     at scroll 0, so there's no jump at load. `right` mirrors .page's own
-     max-width centering math (static px alone drifts out of alignment
+  /* Every page: the orb persists in the viewport while scrolling instead
+     of scrolling away with the hero/page-header, receding + weaving
+     between the zigzag sections' left/right alternation via scroll
+     progress (see motion.js). --orb-rest-top/--orb-rest-right (set on
+     .hero and .page-header just below) reproduce each context's own
+     resting spot, converted to viewport coordinates at scroll 0, so
+     there's no jump at load. `--page-edge-right` mirrors .page's own
+     max-width centering math (a static px alone drifts out of alignment
      past 1400px+padding, where .page stops filling the viewport and
      starts centering with margin:auto) — verified via getBoundingClientRect
-     at 700/1000/1280/1500/1700px, not assumed. Work/About/Life keep the
-     static absolute version. */
-  .hero .sphere {
+     at 700/1000/1280/1500/1700px, not assumed. */
+  .orb-frame .sphere {
     position: fixed;
-    top: -14px;
-    right: calc(max(0px, (100vw - var(--page-max-width)) / 2) + var(--spacing-30) - 5px);
+    top: var(--orb-rest-top);
+    right: var(--orb-rest-right);
     transform: translate(var(--orb-x, 0px), var(--orb-y, 0px)) translate(var(--scroll-x, 0px), var(--scroll-y, 0px)) scale(var(--scroll-scale, 1));
     opacity: var(--scroll-opacity, 1);
     transition: opacity var(--duration-base) var(--ease-standard);
@@ -354,6 +370,10 @@ nav a.active::after {
      no overflow:hidden here, unlike .hero, so the circle always renders whole. */
   min-height: 360px;
   padding: var(--spacing-46) 0 var(--spacing-30);
+  /* The orb's fixed resting spot (see .orb-frame .sphere): flush with the
+     page column, no ring-alignment tweak needed here. */
+  --orb-rest-top: var(--spacing-46);
+  --orb-rest-right: var(--page-edge-right);
 }
 
 .page-header .label,
@@ -399,6 +419,27 @@ section {
 #contact {
   position: relative;
   z-index: 1;
+}
+
+/* --- Zigzag section alternation (all four pages) ---
+   Every repeating content unit — Home's #now/#contact, Work's
+   .project-card, About/Life's .about-block — carries .zigzag. Every
+   *other* one flips to a right-aligned block (flex column, items
+   shrink-to-fit and hug the right edge; text within each item stays
+   left-aligned, per the "body copy never centers" rule — only the
+   block's position changes) so the page reads as a left-right-left-
+   right rhythm, and the scroll-linked orb has something to weave
+   between (see motion.js). The extra margin-top on every zigzag item
+   after the first gives that weave genuine scroll distance to complete
+   in, rather than being rushed between cramped sections. */
+.zigzag:nth-of-type(even) {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.zigzag + .zigzag {
+  margin-top: var(--zigzag-gap);
 }
 
 /* --- Scroll-triggered reveal --- */
@@ -490,15 +531,15 @@ section p:last-of-type {
 }
 
 /* --- About page content blocks --- */
+/* margin-top comes from .zigzag + .zigzag (the same --zigzag-gap used
+   site-wide); this rule only adds the divider itself. */
 .about-block + .about-block {
-  margin-top: var(--spacing-30);
   padding-top: var(--spacing-30);
   border-top: 1px solid var(--color-ash);
 }
 
 /* --- Project cards (Work page) --- */
 .project-card + .project-card {
-  margin-top: var(--spacing-30);
   padding-top: var(--spacing-30);
   border-top: 1px solid var(--color-ash);
 }
@@ -530,7 +571,13 @@ section p:last-of-type {
 }
 
 .meta-list {
-  display: flex;
+  /* inline-flex, not flex: this must be content-sized (shrink-wrapped
+     around Stack/Status), not a full-width block whose invisible right
+     edge sits at the page edge regardless of how short its content is —
+     both for correct flex-column right-alignment if it ever appears in
+     a .zigzag:nth-of-type(even) card, and for motion.js's edge-safety
+     measurement against it. */
+  display: inline-flex;
   flex-wrap: wrap;
   gap: var(--spacing-30);
   margin-top: var(--spacing-19);
