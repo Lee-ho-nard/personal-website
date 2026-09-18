@@ -86,6 +86,41 @@
   animation-timing-function: var(--ease-standard);
 }
 
+/* Directional swipe — tagged on pageswap via the View Transition Types API */
+html:active-view-transition-type(forward)::view-transition-old(root) {
+  animation: swipe-out-left var(--duration-base) var(--ease-standard) both;
+}
+
+html:active-view-transition-type(forward)::view-transition-new(root) {
+  animation: swipe-in-right var(--duration-base) var(--ease-standard) both;
+}
+
+html:active-view-transition-type(back)::view-transition-old(root) {
+  animation: swipe-out-right var(--duration-base) var(--ease-standard) both;
+}
+
+html:active-view-transition-type(back)::view-transition-new(root) {
+  animation: swipe-in-left var(--duration-base) var(--ease-standard) both;
+}
+
+@keyframes swipe-out-left {
+  to { transform: translateX(-40px); opacity: 0; }
+}
+
+@keyframes swipe-in-right {
+  from { transform: translateX(40px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes swipe-out-right {
+  to { transform: translateX(40px); opacity: 0; }
+}
+
+@keyframes swipe-in-left {
+  from { transform: translateX(-40px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   ::view-transition-group(*),
   ::view-transition-old(*),
@@ -151,6 +186,18 @@ a {
 @media (prefers-reduced-motion: no-preference) {
   .sphere {
     animation: orb-hue-drift var(--duration-orb) linear infinite;
+  }
+
+  /* Home only: the orb persists in the viewport while scrolling instead
+     of scrolling away with the hero, subtly receding via scroll progress
+     (see motion.js). Work/About/Life keep the static absolute version. */
+  .hero .sphere {
+    position: fixed;
+    top: var(--spacing-46);
+    right: var(--spacing-30);
+    transform: translate(var(--orb-x, 0px), var(--orb-y, 0px)) translateY(var(--scroll-y, 0px)) scale(var(--scroll-scale, 1));
+    opacity: var(--scroll-opacity, 1);
+    transition: opacity var(--duration-base) var(--ease-standard);
   }
 }
 
@@ -311,7 +358,15 @@ nav a.active::after {
 /* --- Page header (Work / About / Life) --- */
 .page-header {
   position: relative;
+  overflow: hidden;
+  min-height: 220px;
   padding: var(--spacing-46) 0 var(--spacing-30);
+}
+
+.page-header .label,
+.page-header h1 {
+  position: relative;
+  z-index: 1;
 }
 
 .page-header h1 {
@@ -323,24 +378,12 @@ nav a.active::after {
   letter-spacing: var(--tracking-heading-sm);
 }
 
-/* Small orb badge carried over from the hero — anchors the hero-orb
-   view transition so the sphere morphs across pages instead of
-   hard-cutting, rather than repeating the gradient as a full accent. */
-.page-orb {
-  position: absolute;
-  top: 0;
-  right: 0;
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  background: var(--gradient-iridescent-sphere);
-  view-transition-name: hero-orb;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .page-orb {
-    animation: orb-hue-drift var(--duration-orb) linear infinite;
-  }
+/* The orb here is the exact same element/size as the Home hero's — only
+   the frame around it is smaller, so it's cropped rather than scaled.
+   That keeps the hero-orb view-transition a pure move, never a resize. */
+.page-header .sphere {
+  top: -80px;
+  right: -60px;
 }
 
 /* --- Sections --- */
