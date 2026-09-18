@@ -384,6 +384,13 @@ section p:last-of-type {
   }
 }
 
+/* --- About page content blocks --- */
+.about-block + .about-block {
+  margin-top: var(--spacing-30);
+  padding-top: var(--spacing-30);
+  border-top: 1px solid var(--color-ash);
+}
+
 /* --- Project cards (Work page) --- */
 .project-card + .project-card {
   margin-top: var(--spacing-30);
