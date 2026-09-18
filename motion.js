@@ -109,11 +109,37 @@
     const heroSphere = hero ? hero.querySelector(".sphere") : null;
     const footer = document.querySelector("footer");
 
-    const card = document.querySelector("section");
+    // h2 and p are block boxes sized to their container/max-width, not to
+    // their actual glyphs — a short "NOW" heading and a wrapped paragraph
+    // both report a bounding-box edge far past where the visible text
+    // really ends, especially once a line wraps well short of its
+    // max-width. Range.getClientRects() gives the real per-line text
+    // extent instead, so "open space" means genuinely empty pixels.
+    const proseEls = Array.from(document.querySelectorAll("#now h2, #now p, #now .ghost-link, #contact h2, #contact p, #contact .ghost-link"));
 
-    if (hero && heroSphere && footer && card) {
+    if (hero && heroSphere && footer) {
       let scrollQueued = false;
-      const restRightInset = 35; // matches .hero .sphere's base `right` value
+
+      function measuredRight(el) {
+        if (el.tagName === "H2" || el.tagName === "P") {
+          const range = document.createRange();
+          range.selectNodeContents(el);
+          let maxRight = 0;
+          for (const rect of range.getClientRects()) maxRight = Math.max(maxRight, rect.right);
+          return maxRight;
+        }
+        return el.getBoundingClientRect().right;
+      }
+
+      // How far the orb can roam left before it would reach the prose text,
+      // measured against the actual rendered text edge (not an assumed
+      // fraction of viewport width) so it's real open space at any size.
+      function measureRoamAmplitude() {
+        if (!proseEls.length) return 0;
+        const textRight = Math.max(...proseEls.map(measuredRight));
+        const margin = 40;
+        return Math.max(60, Math.min(260, window.innerWidth - textRight - margin));
+      }
 
       function updateScrollOrb() {
         scrollQueued = false;
@@ -123,26 +149,17 @@
         const scale = 1 - progress * 0.35; // recede as you scroll past the hero
         const drift = -progress * 40; // px, drifts up slightly toward its resting slot
 
-        // Blended in over the last 40% of the hero scroll: measure the
-        // actual card edge and push the orb right by exactly however much
-        // is needed to clear it, so it can never overlap a card regardless
-        // of viewport width — a measured guarantee, not an assumed margin.
-        //
-        // `scale()` shrinks the box around its own transform-origin (the
-        // center of its *unscaled* layout box), so the post-scale edge has
-        // to be derived from the unscaled center, not from naively
-        // subtracting the already-scaled width from the unscaled edge.
-        const capBlend = Math.max(0, Math.min(1, (progress - 0.6) / 0.4));
-        let pushX = 0;
-        if (capBlend > 0) {
-          const baseWidth = Math.min(320, window.innerWidth * 0.55);
-          const naturalCenterX = window.innerWidth - restRightInset - baseWidth / 2;
-          const orbWidth = baseWidth * scale;
-          const safetyBuffer = 24;
-          const targetLeftEdge = card.getBoundingClientRect().right + safetyBuffer;
-          const neededPush = targetLeftEdge - (naturalCenterX - orbWidth / 2);
-          pushX = Math.max(0, neededPush) * capBlend;
-        }
+        // Now/Contact have no card box to dodge (see #now/#contact in
+        // style.css), so the whole right-hand two-thirds of the page is
+        // open — let the orb actually roam through it rather than sitting
+        // pinned to one spot. A sine arc over the *whole* page's scroll
+        // progress (not just the hero-exit blend) drifts it left into that
+        // open space around the midpoint of the page and back toward its
+        // resting spot by the time the footer arrives.
+        const maxScroll = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
+        const pageProgress = Math.min(1, Math.max(0, scrollY / maxScroll));
+        const roamAmplitude = measureRoamAmplitude();
+        const roamX = -Math.sin(pageProgress * Math.PI) * roamAmplitude;
 
         const footerTop = footer.getBoundingClientRect().top + scrollY;
         const fadeStart = footerTop - window.innerHeight * 1.2;
@@ -152,7 +169,7 @@
 
         heroSphere.style.setProperty("--scroll-scale", scale.toFixed(3));
         heroSphere.style.setProperty("--scroll-y", drift.toFixed(1) + "px");
-        heroSphere.style.setProperty("--scroll-x", pushX.toFixed(1) + "px");
+        heroSphere.style.setProperty("--scroll-x", roamX.toFixed(1) + "px");
         heroSphere.style.setProperty("--scroll-opacity", (1 - fadeProgress).toFixed(3));
       }
 

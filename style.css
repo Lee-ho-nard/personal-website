@@ -172,10 +172,11 @@ a {
 .sphere {
   position: absolute;
   /* Centered on the same point as .ring--outer/.ring--inner (both average
-     to a center 100px down / 155px in from the hero's top-right corner) —
-     keep this in sync with the rings if their offsets ever change. */
+     to a center 100px down / 165px in from the hero's top-right corner) —
+     keep this in sync with the rings if their offsets ever change. Verified
+     via getBoundingClientRect against the live rings, not assumed math. */
   top: -60px;
-  right: 5px;
+  right: -5px;
   width: min(320px, 55vw);
   height: min(320px, 55vw);
   border-radius: 50%;
@@ -196,12 +197,16 @@ a {
      of scrolling away with the hero, subtly receding via scroll progress
      (see motion.js). top/right reproduce the same ring-centered resting
      spot as the absolute version above, converted to viewport coordinates
-     at scroll 0, so there's no jump at load. Work/About/Life keep the
+     at scroll 0, so there's no jump at load. `right` mirrors .page's own
+     max-width centering math (static px alone drifts out of alignment
+     past 1400px+padding, where .page stops filling the viewport and
+     starts centering with margin:auto) — verified via getBoundingClientRect
+     at 700/1000/1280/1500/1700px, not assumed. Work/About/Life keep the
      static absolute version. */
   .hero .sphere {
     position: fixed;
     top: -14px;
-    right: 35px;
+    right: calc(max(0px, (100vw - var(--page-max-width)) / 2) + var(--spacing-30) - 5px);
     transform: translate(var(--orb-x, 0px), var(--orb-y, 0px)) translate(var(--scroll-x, 0px), var(--scroll-y, 0px)) scale(var(--scroll-scale, 1));
     opacity: var(--scroll-opacity, 1);
     transition: opacity var(--duration-base) var(--ease-standard);
@@ -401,6 +406,19 @@ section {
   border-radius: var(--radius-cards);
   padding: var(--spacing-46) var(--spacing-30);
   margin-bottom: var(--spacing-76);
+}
+
+/* Home's Now/Contact drop the boxed-card treatment so text sits directly
+   on the page background — this opens the entire right-hand two-thirds
+   of the page as real, unobstructed roaming space for the scroll-linked
+   hero orb (see motion.js) instead of a card it has to be pushed clear
+   of. Internal spacing/typography is untouched, only the box goes. */
+#now,
+#contact {
+  position: relative;
+  z-index: 1;
+  background: transparent;
+  border-top: none;
 }
 
 /* --- Scroll-triggered reveal --- */
