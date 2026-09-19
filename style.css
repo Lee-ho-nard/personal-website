@@ -59,22 +59,30 @@
      to keep the fixed-position orb aligned with hero-relative content
      across breakpoints without duplicating this math in JS. */
   --page-edge-right: calc(max(0px, (100vw - var(--page-max-width)) / 2) + var(--spacing-30));
-  /* Vertical gap before every zigzag section after the first. Sized as a
-     hard floor: the orb's own fixed vertical band must never be tall
-     enough to simultaneously touch two consecutive zigzag elements' text
-     at once, or there'd be no single X position (at any size) that clears
-     both an already-passed left-aligned block and an approaching right-
-     aligned one at the same time. baseWidth is viewport-relative
-     (min(520px, 18vw) in both this file's .sphere rule and motion.js's
-     tickScrollOrb), so the worst case scales with viewport width too —
-     at the widest width this site is actually verified at (1700px:
-     baseWidth 306px × BASE_GROWTH_PLATEAU 1.65 × BREATHE_SAFETY_FACTOR
-     1.39 ≈ 700px), not the largest this formula could produce on an
-     unbounded monitor. The safety solver in motion.js is what actually
-     guarantees no overlap even past that; this gap just keeps the
-     multi-element case rare. Verified via getBoundingClientRect sweeps
-     across every zigzag transition on every page, not assumed. */
-  --zigzag-gap: 740px;
+  /* Vertical gap before every zigzag section after the first. Re-derived
+     empirically (not nudged) after motion.js's BAND_TRANSITION fade was
+     added: a fully rigorous, always-comfortable-margin minimum came out
+     viewport-relative and, at typical desktop widths, closer to the old
+     740px than smaller — About (the page with the most zigzag sections,
+     whose later transitions land at a higher growthProgress, closer to
+     the depth-growth plateau, than Home's ever do) is the binding case.
+     Tightening below that reopens a real, non-rounding-noise safety-
+     margin shortfall on About specifically, right around its later
+     transitions — a deliberate tradeoff, not an oversight: accepted in
+     favor of visibly tighter section pacing everywhere, since the
+     existing infeasible-fallback in motion.js's safety solver still
+     guarantees real text clearance whenever this happens, at the cost of
+     the orb occasionally pinning to a fixed point for a short scroll
+     span instead of gliding smoothly through it.
+     Verified via a full getBoundingClientRect-based safety-margin sweep
+     (every 5px of scroll, both bound directions) on every zigzag
+     transition on every page at 700/1024/1700px: at 700px, comfortably
+     safe on Home and About (About's one shortfall there is a separate,
+     pre-existing, gap-independent narrow-viewport squeeze near the top
+     of the page, present at this width regardless of this value); at
+     1024px, a brief ~30px-of-scroll shortfall on About (~-15px worst
+     margin); at 1700px, zero shortfall on About. */
+  --zigzag-gap: 700px;
 
   /* Motion */
   --duration-fast: 150ms;

@@ -284,14 +284,17 @@
       // roughly halves the worst-case px-of-bound-change per px-of-scroll
       // versus a much narrower transition, which is what actually stops
       // the hard clamp from having to catch up in one visible snap.
-      // Deliberately kept under half of --zigzag-gap (740px, see the CSS):
-      // a wider value measurably smoother in isolation started reaching
-      // far enough that two adjacent zigzag elements' transition zones
-      // overlapped, which manufactured brand-new scrollY ranges where
-      // neither text bound could be satisfied at once — a regression the
-      // solver's existing infeasible-fallback masks safely, but that's a
-      // reason not to lean on it more than the original design did, not a
-      // reason to accept trading it away for extra smoothness.
+      // Exactly half of --zigzag-gap (700px, see the CSS) — the two
+      // constants were re-derived and tuned together. A wider value
+      // smoothed the swing further in isolation, but started reaching far
+      // enough that two adjacent zigzag elements' transition zones
+      // overlapped, manufacturing brand-new scrollY ranges where neither
+      // text bound could be satisfied at once. --zigzag-gap was
+      // deliberately tightened past the point that avoids that entirely
+      // (see its own comment in the CSS) — on About specifically, the two
+      // fades now touch right at the gap's midpoint, a deliberate, bounded
+      // trade for visibly tighter section pacing everywhere, safely masked
+      // by the solver's existing infeasible-fallback, not an oversight.
       const BAND_TRANSITION = 350;
       // Stands in for "this element doesn't constrain the orb at all" —
       // used instead of true Infinity so lowerBase/upperBase are always
@@ -407,7 +410,6 @@
         const frameHeight = frame.offsetHeight || 1;
         const scrollY = window.scrollY;
         const progress = Math.min(1, Math.max(0, scrollY / frameHeight));
-        const scale = 1 - progress * 0.35; // recede as you scroll past the header
         const drift = -progress * 40; // px, drifts up slightly toward its resting slot
 
         // Mirrors the .sphere CSS rule's own width/height (min(520px,
@@ -426,17 +428,31 @@
         const zigzagBottoms = zigzagEls.map((el) => el.getBoundingClientRect().bottom + scrollY);
         const lastContentBottom = zigzagBottoms.length ? Math.max(...zigzagBottoms) : 0;
 
-        // Depth-based base size: on top of the header recede above, the
-        // orb's base grows back up through the main content, leveling off
-        // at BASE_GROWTH_PLATEAU at GROWTH_LEVEL_FRACTION of the way
-        // through it — well before the footer, per page, since it's
-        // measured against each page's own real content length rather
-        // than a fixed pixel distance. Breathing (below) still applies on
-        // top of this, not instead of it.
+        // Depth-based base size: starts at the normal base size (1) right
+        // at scroll 0 and grows smoothly and monotonically from there,
+        // leveling off at BASE_GROWTH_PLATEAU at GROWTH_LEVEL_FRACTION of
+        // the way through the main content — well before the footer, per
+        // page, since it's measured against each page's own real content
+        // length rather than a fixed pixel distance. Breathing (below)
+        // still applies on top of this, not instead of it.
+        //
+        // growthLevelAt (the plateau point) is still anchored to the end
+        // of the header — a landmark for "how far into main content" this
+        // is, unrelated to where growth itself starts — but growthProgress
+        // ramps across the entire 0..growthLevelAt span, not growthStart..
+        // growthLevelAt. An earlier version started the ramp at
+        // growthStart (frameHeight) with the *header-recede* scale
+        // (1 - progress*0.35, receding across that same 0..frameHeight
+        // span) as growth's own starting point — since growth hadn't
+        // begun accumulating by the time the header's recede had already
+        // bottomed out at 0.65, the orb visibly shrank before it grew,
+        // right at the top of every page. Growing across the full span
+        // instead removes the recede as an input to size entirely, so
+        // there's nothing left to dip before growth takes over.
         const growthStart = frameHeight;
         const growthLevelAt = growthStart + Math.max(1, lastContentBottom - growthStart) * GROWTH_LEVEL_FRACTION;
-        const growthProgress = Math.min(1, Math.max(0, (scrollY - growthStart) / Math.max(1, growthLevelAt - growthStart)));
-        const depthBase = scale + (BASE_GROWTH_PLATEAU - 0.65) * growthProgress;
+        const growthProgress = Math.min(1, Math.max(0, scrollY / Math.max(1, growthLevelAt)));
+        const depthBase = 1 + (BASE_GROWTH_PLATEAU - 1) * growthProgress;
 
         // The breathing resize below is computed from the weave position
         // itself, which is circular — the weave's own safe clearance
@@ -449,11 +465,11 @@
         const orbHalfWidthSafe = (baseWidth * depthBase * BREATHE_SAFETY_FACTOR) / 2;
 
         // Fades the weave in over WEAVE_INTRO_DISTANCE only — not over the
-        // header's full height like the scale/drift above. See
-        // WEAVE_INTRO_DISTANCE's own comment for why that distinction
-        // matters: it used to share `progress`, which is what let the
-        // safety clamp below yank an unrelated-but-still-fading-in value
-        // straight to full strength once a section's text got close.
+        // header's full height like drift above. See WEAVE_INTRO_DISTANCE's
+        // own comment for why that distinction matters: it used to share
+        // `progress`, which is what let the safety clamp below yank an
+        // unrelated-but-still-fading-in value straight to full strength
+        // once a section's text got close.
         const weaveIntro = Math.min(1, scrollY / WEAVE_INTRO_DISTANCE);
         const preferredWeaveX = currentWeaveTarget(naturalCenterX, orbHalfWidthSafe) * weaveIntro;
 
