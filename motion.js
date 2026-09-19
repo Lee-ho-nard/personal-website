@@ -521,14 +521,36 @@
           (upperBase + naturalCenterX) / (1 - VIEWPORT_BLEED_FRACTION),
           (upperBase - lowerBase) / 2,
         ];
-        // Effectively just an epsilon, not a preferred minimum: any real
-        // floor here can itself override the exact feasible size above
-        // and reintroduce an infeasible clamp — tried at both 0.25× and
-        // 0.12× baseWidth, and a sufficiently tight, narrow-viewport
-        // squeeze exceeded each in turn. Safety wins over keeping the orb
-        // a certain size; this only guards against literal zero/negative,
-        // which would otherwise show up as NaN or a hidden orb.
-        const MIN_ORB_HALF_WIDTH = 2;
+        // A real floor, not an epsilon: earlier versions used a flat 2px
+        // (or tried 0.25x/0.12x baseWidth and backed off), reasoning that
+        // any real floor "reintroduces an infeasible clamp" — treated at
+        // the time as the thing to avoid. Measured against real content
+        // since, that reasoning had it backwards: on pages where a later
+        // zigzag element sits alone (no opposite-side neighbor to average
+        // against) at close to full depth-growth in a mid-width viewport,
+        // the *epsilon* floor let effectiveHalfWidth collapse toward zero
+        // — ratio down to ~0.01 of the orb's actual desired size,
+        // measured via a real getBoundingClientRect sweep on About at
+        // 1024px, not assumed — instead of ever triggering the fallback
+        // below. A barely-visible orb "solving" its own clearance by
+        // vanishing is not a success case; it just doesn't trip the
+        // isFeasible check, which only ever asked whether *some* size
+        // fits, never whether that size still reads as the orb. Flooring
+        // at a real fraction of the orb's own desired size means a spot
+        // too tight for that now correctly falls through to
+        // infeasibleFallback instead — a fixed, safe *position* at a
+        // real, visible size, rather than a full-range *size* collapse.
+        // 0.2 specifically (not a rounder 0.35 tried first): measured via
+        // the same sweep, raising the floor only pays off up to the point
+        // where a *different* constraint (viewport bleed, independent of
+        // this floor) is already the binding one — beyond that, a higher
+        // floor purely multiplies how often infeasibleFallback fires
+        // (67.8% of scroll on Home at 700px, at 0.35) without shrinking
+        // any further (the floor-independent rate there is ~39%, matched
+        // almost exactly at 0.2). Picking the floor right at that knee
+        // gets the vanishing-orb guarantee for free, without trading away
+        // extra smooth-glide range for no real benefit.
+        const MIN_ORB_HALF_WIDTH = orbHalfWidthSafe * 0.2;
         const effectiveHalfWidth = Math.max(MIN_ORB_HALF_WIDTH, Math.min(...halfWidthCandidates));
 
         const lower = lowerBase + effectiveHalfWidth;
