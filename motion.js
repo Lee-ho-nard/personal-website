@@ -132,6 +132,10 @@
       // (see --orb-rest-right in style.css) — needed here to reconstruct
       // the same natural center in JS.
       const restRightTweak = frame.classList.contains("hero") ? 5 : 0;
+      // Read once: the fixed CSS px value driving --orb-rest-top, used
+      // below to compute the orb's vertical band analytically instead of
+      // reading it off the live element (see the comment at bandTop).
+      const restTop = parseFloat(getComputedStyle(frame).getPropertyValue("--orb-rest-top")) || 0;
 
       // h2 and p are block boxes sized to their container/max-width, not
       // to their actual glyphs — a short heading and a wrapped paragraph
@@ -190,6 +194,18 @@
       // possibly render at (see orbHalfWidthSafe) so a bigger breathing
       // swing needs a correspondingly bigger safety allowance here.
       const BREATHE_SAFETY_FACTOR = 1 + BREATHE_AMPLITUDE;
+      // The orb's base size (independent of breathing) at full scroll
+      // depth — up from the receded 0.65 back past its original 1 and on
+      // to a noticeably larger resting size, so the page reads as the orb
+      // growing in presence as you go, not just breathing around one
+      // fixed size the whole way down.
+      const BASE_GROWTH_PLATEAU = 1.3;
+      // How far into the main content (as a fraction of the distance from
+      // the header's end to the last real content, per page) the growth
+      // above finishes and levels off — short of 1 so it's flat well
+      // before the footer, on every page, regardless of how long that
+      // page's content actually is.
+      const GROWTH_LEVEL_FRACTION = 0.6;
 
       // Where the orb should sit while a given zigzag element is the one
       // in view, as a --scroll-x offset from its natural resting center.
@@ -225,21 +241,30 @@
       // just the one the anchor currently designates. Left-aligned
       // elements impose a floor (don't drift further left than this);
       // right-aligned ones impose a ceiling (don't drift further right).
-      function safeRangeAt(orbTop, orbBottom, naturalCenterX, orbHalfWidth) {
-        let lower = -Infinity;
-        let upper = Infinity;
+      //
+      // Returned *without* orbHalfWidth folded in (unlike the rest of this
+      // file's margin math) — the depth-based growth (see tickScrollOrb)
+      // means the orb can now be tall enough that its band spans two
+      // zigzag elements on opposite sides at once, and there may be no
+      // single half-width that clears both simultaneously. Keeping the
+      // half-width out of these bases lets tickScrollOrb solve for the
+      // largest half-width that still fits, rather than the fixed
+      // "everywhere" size demanding an X position that doesn't exist.
+      function safetyBaseAt(orbTop, orbBottom, naturalCenterX) {
+        let lowerBase = -Infinity;
+        let upperBase = Infinity;
         zigzagEls.forEach((el, i) => {
           const rect = el.getBoundingClientRect();
           if (rect.bottom < orbTop || rect.top > orbBottom) return;
           const edges = textEdges(el);
           if (!isFinite(edges.left)) return;
           if (i % 2 === 1) {
-            upper = Math.min(upper, edges.left - EDGE_MARGIN - orbHalfWidth - naturalCenterX);
+            upperBase = Math.min(upperBase, edges.left - EDGE_MARGIN - naturalCenterX);
           } else {
-            lower = Math.max(lower, edges.right + EDGE_MARGIN + orbHalfWidth - naturalCenterX);
+            lowerBase = Math.max(lowerBase, edges.right + EDGE_MARGIN - naturalCenterX);
           }
         });
-        return { lower, upper };
+        return { lowerBase, upperBase };
       }
 
       // Which zigzag element the viewport is currently over, and — only in
@@ -309,22 +334,37 @@
         const scale = 1 - progress * 0.35; // recede as you scroll past the header
         const drift = -progress * 40; // px, drifts up slightly toward its resting slot
 
-        // The orb's own rendered band from the last applied frame — one
-        // frame stale, negligible against a scroll-driven position that
-        // only moves a few px between frames — used below to find which
-        // elements it's actually next to right now (see safeRangeAt).
-        const prevRect = scrollSphere.getBoundingClientRect();
-
         const baseWidth = Math.min(320, window.innerWidth * 0.55);
         const frameRect = frame.getBoundingClientRect();
         const naturalCenterX = frameRect.right - restRightTweak - baseWidth / 2;
+
+        // How far down the real content actually goes on this page —
+        // computed once here and reused both for the depth-based growth
+        // below and the footer-fade further down.
+        const zigzagBottoms = zigzagEls.map((el) => el.getBoundingClientRect().bottom + scrollY);
+        const lastContentBottom = zigzagBottoms.length ? Math.max(...zigzagBottoms) : 0;
+
+        // Depth-based base size: on top of the header recede above, the
+        // orb's base grows back up through the main content, leveling off
+        // at BASE_GROWTH_PLATEAU at GROWTH_LEVEL_FRACTION of the way
+        // through it — well before the footer, per page, since it's
+        // measured against each page's own real content length rather
+        // than a fixed pixel distance. Breathing (below) still applies on
+        // top of this, not instead of it.
+        const growthStart = frameHeight;
+        const growthLevelAt = growthStart + Math.max(1, lastContentBottom - growthStart) * GROWTH_LEVEL_FRACTION;
+        const growthProgress = Math.min(1, Math.max(0, (scrollY - growthStart) / Math.max(1, growthLevelAt - growthStart)));
+        const depthBase = scale + (BASE_GROWTH_PLATEAU - 0.65) * growthProgress;
+
         // The breathing resize below is computed from the weave position
         // itself, which is circular — the weave's own safe clearance
         // depends on how big the orb is. Sizing the safety clearance for
         // the largest the orb could possibly breathe up to keeps the
         // overlap guarantee intact no matter what the real, possibly-
-        // smaller breathed size ends up being.
-        const orbHalfWidthSafe = (baseWidth * scale * BREATHE_SAFETY_FACTOR) / 2;
+        // smaller breathed size ends up being. Uses depthBase (this
+        // frame's actual grown base), not a page-wide worst case, since
+        // that's the real size the orb could breathe up from right now.
+        const orbHalfWidthSafe = (baseWidth * depthBase * BREATHE_SAFETY_FACTOR) / 2;
 
         // Fades the weave in over WEAVE_INTRO_DISTANCE only — not over the
         // header's full height like the scale/drift above. See
@@ -335,28 +375,94 @@
         const weaveIntro = Math.min(1, scrollY / WEAVE_INTRO_DISTANCE);
         const preferredWeaveX = currentWeaveTarget(naturalCenterX, orbHalfWidthSafe) * weaveIntro;
 
-        // The raw, this-instant target: the anchor/blend's preference,
-        // clamped against every element actually overlapping the orb's
-        // band right now (see safeRangeAt above). This can still jump
-        // between frames — a new element entering/leaving the band, or
-        // the anchor/blend handing off between sections — which is exactly
-        // what the lerp below smooths out.
-        // A text-safety bound can demand a lean larger than the viewport
-        // itself once a paragraph is wide relative to a narrow window —
-        // clearing the text would otherwise push the orb's center clean
-        // past the viewport edge, making it fully invisible. An orb that's
-        // safely clear of the text but not actually on screen isn't
-        // "safe," it's just gone, so this bound wins when the two conflict.
-        const maxCenterBleed = orbHalfWidthSafe * 0.5;
+        // With depth-growth, the orb can now be big enough that no single
+        // half-width satisfies every active constraint at once: it can be
+        // tall enough to overlap a left-aligned AND a right-aligned
+        // element simultaneously (something the 240px zigzag-gap ruled
+        // out for the smaller pre-growth orb), and separately, clearing
+        // even just one text edge can demand a lean wide enough to push
+        // the orb mostly off a narrow viewport. Rather than pick a target
+        // that quietly breaks one of these, solve for the largest
+        // half-width that keeps all of them satisfiable — down to a sane
+        // floor — and use that same half-width for the actual rendered
+        // size (see the breathing cap below), so what's on screen matches
+        // what the safety math assumed.
+        //
+        // Which elements even count as "in the band" is deliberately
+        // computed from the orb's own DESIRED size (restTop/drift plus
+        // baseWidth×depthBase×BREATHE_SAFETY_FACTOR), not its actual
+        // current rendered rect. Using the live rect fed back into itself:
+        // a squeeze shrinks the orb, the smaller band then stops
+        // overlapping the element that caused the squeeze, the squeeze
+        // relaxes, the orb grows back, the band overlaps again — an
+        // oscillation that never settles. Sizing the detection band off
+        // the fixed "how big would this orb like to be here" value keeps
+        // the set of relevant elements stable frame to frame, regardless
+        // of how much the actual render ends up shrinking to fit them.
+        const bandTop = restTop + drift;
+        const bandBottom = bandTop + baseWidth * depthBase * BREATHE_SAFETY_FACTOR;
+        const { lowerBase, upperBase } = safetyBaseAt(bandTop, bandBottom, naturalCenterX);
+        // How far the orb's center may sit past the viewport edge, as a
+        // fraction of its own half-width — 0 would force it fully inside
+        // the viewport, 1 would let it disappear entirely. A text-safety
+        // bound can still demand more room than even this allows once a
+        // paragraph is wide relative to a narrow window; when that
+        // happens the candidates below shrink the orb until it fits
+        // rather than letting either side win outright.
+        const VIEWPORT_BLEED_FRACTION = 0.6;
+        const halfWidthCandidates = [orbHalfWidthSafe];
+        if (isFinite(lowerBase)) {
+          // Largest half-width for which clearing this left-aligned text
+          // (lowerBase + hw) still stays within the viewport-bleed bound
+          // on the right (innerWidth + BLEED*hw - naturalCenterX).
+          halfWidthCandidates.push(
+            (window.innerWidth - naturalCenterX - lowerBase) / (1 - VIEWPORT_BLEED_FRACTION)
+          );
+        }
+        if (isFinite(upperBase)) {
+          // Same, mirrored for a right-aligned text pulling left.
+          halfWidthCandidates.push((upperBase + naturalCenterX) / (1 - VIEWPORT_BLEED_FRACTION));
+        }
+        if (isFinite(lowerBase) && isFinite(upperBase)) {
+          halfWidthCandidates.push((upperBase - lowerBase) / 2);
+        }
+        // Effectively just an epsilon, not a preferred minimum: any real
+        // floor here can itself override the exact feasible size above
+        // and reintroduce an infeasible clamp — tried at both 0.25× and
+        // 0.12× baseWidth, and a sufficiently tight, narrow-viewport
+        // squeeze exceeded each in turn. Safety wins over keeping the orb
+        // a certain size; this only guards against literal zero/negative,
+        // which would otherwise show up as NaN or a hidden orb.
+        const MIN_ORB_HALF_WIDTH = 2;
+        const effectiveHalfWidth = Math.max(MIN_ORB_HALF_WIDTH, Math.min(...halfWidthCandidates));
+
+        const lower = isFinite(lowerBase) ? lowerBase + effectiveHalfWidth : -Infinity;
+        const upper = isFinite(upperBase) ? upperBase - effectiveHalfWidth : Infinity;
+        const maxCenterBleed = effectiveHalfWidth * VIEWPORT_BLEED_FRACTION;
         const viewportLower = -maxCenterBleed - naturalCenterX;
         const viewportUpper = window.innerWidth + maxCenterBleed - naturalCenterX;
 
-        const { lower, upper } = safeRangeAt(prevRect.top, prevRect.bottom, naturalCenterX, orbHalfWidthSafe);
         const boundedLower = Math.max(lower, viewportLower);
         const boundedUpper = Math.min(upper, viewportUpper);
+        // Even the solved effectiveHalfWidth above can still leave this
+        // infeasible — MIN_ORB_HALF_WIDTH is a floor it can't shrink past,
+        // and the exact solution can call for something smaller still (in
+        // principle even negative, if a text edge alone can't be cleared
+        // within the allowed viewport bleed at any size). Text safety is
+        // the one guarantee that has to hold regardless, so the fallback
+        // here targets whichever text bound(s) are actually active and
+        // ignores the viewport-bleed preference entirely, rather than
+        // splitting the difference and satisfying neither exactly.
+        const infeasibleFallback = isFinite(lower) && isFinite(upper)
+          ? (lower + upper) / 2
+          : isFinite(lower)
+            ? lower
+            : isFinite(upper)
+              ? upper
+              : (viewportLower + viewportUpper) / 2;
         const rawWeaveX = boundedLower <= boundedUpper
           ? Math.min(boundedUpper, Math.max(boundedLower, preferredWeaveX))
-          : (viewportLower + viewportUpper) / 2;
+          : infeasibleFallback;
 
         currentWeaveX += (rawWeaveX - currentWeaveX) * WEAVE_LERP;
         // Hard safety net, applied after smoothing: the lerp glides toward
@@ -366,26 +472,30 @@
         // the smoothed value was heading toward.
         const weaveX = boundedLower <= boundedUpper
           ? Math.min(boundedUpper, Math.max(boundedLower, currentWeaveX))
-          : (viewportLower + viewportUpper) / 2;
+          : infeasibleFallback;
         currentWeaveX = weaveX;
 
         // Breathing: near its natural center (small weave offset) the orb
         // reads as being in open space and grows; leaning hard toward a
         // text block, it shrinks. Driven by the same weave value as the
         // S-curve itself, so size and position move as one motion — and
-        // lerped by the same rate so they settle together, too.
+        // lerped by the same rate so they settle together, too. Also
+        // capped so the actual rendered half-width never exceeds
+        // effectiveHalfWidth — when squeezed (see above), this is what
+        // makes the orb visibly shrink extra to fit, through the same
+        // lerp, rather than rendering past the space it was just solved
+        // to fit within.
         const openness = 1 - Math.min(1, Math.abs(weaveX) / 220);
         const rawBreathe = 1 + (openness - 0.5) * (BREATHE_AMPLITUDE * 2);
-        currentBreatheScale += (rawBreathe - currentBreatheScale) * WEAVE_LERP;
-        const finalScale = scale * currentBreatheScale;
+        const maxBreatheForSqueeze = (effectiveHalfWidth * 2) / (baseWidth * depthBase);
+        currentBreatheScale += (Math.min(rawBreathe, maxBreatheForSqueeze) - currentBreatheScale) * WEAVE_LERP;
+        const finalScale = depthBase * currentBreatheScale;
 
         // Fades out only in the real final stretch before the footer, never
         // while any zigzag content is still on screen — using a fixed
         // fraction of the viewport height here instead assumed the page was
         // a certain length, and clipped into the last section's visibility
         // on shorter pages once the zigzag gap was tightened up.
-        const zigzagBottoms = zigzagEls.map((el) => el.getBoundingClientRect().bottom + scrollY);
-        const lastContentBottom = zigzagBottoms.length ? Math.max(...zigzagBottoms) : 0;
         const footerTop = footer.getBoundingClientRect().top + scrollY;
         const fadeEnd = Math.max(lastContentBottom + 1, footerTop - window.innerHeight * 0.15);
         const fadeStart = Math.max(lastContentBottom, fadeEnd - window.innerHeight * 0.5);
