@@ -534,8 +534,38 @@
         // makes the orb visibly shrink extra to fit, through the same
         // lerp, rather than rendering past the space it was just solved
         // to fit within.
-        const openness = 1 - Math.min(1, Math.abs(deliberateWeaveX) / 220);
-        const rawBreathe = 1 + (openness - 0.5) * (BREATHE_AMPLITUDE * 2);
+        // The lean distance that reads as "fully closed" (openness 0) has
+        // to scale with how big the orb actually is right now — it used to
+        // be a flat 220px, tuned back when the orb's own diameter was
+        // roughly that size. Since depth-growth and viewport-relative
+        // sizing (see baseWidth/depthBase) made the orb's real diameter
+        // several times bigger without this threshold following, almost
+        // any real safety-driven lean saturated openness to 0 and forced
+        // breathe down to its floor everywhere content was nearby —
+        // multiplying against depthBase and canceling the depth growth
+        // out almost entirely, worst of all right before the footer where
+        // the last section forces the biggest lean and growth is supposed
+        // to be most visible. Tying it to the orb's own current natural
+        // diameter (baseWidth * depthBase) keeps the "about one orb-width
+        // of lean closes it" relationship intact at any size.
+        const openness = 1 - Math.min(1, Math.abs(deliberateWeaveX) / (baseWidth * depthBase));
+        // Even scaled, openness still saturates to 0 right before the
+        // footer: clearing the last section's text takes a lean of a
+        // couple orb-diameters at this size, an inherent consequence of
+        // the orb being this big, not really the "hugging a text edge"
+        // case breathing's shrink side was designed for. Left alone, that
+        // forces breathe to its bare floor exactly where growthProgress
+        // has plateaued — i.e. exactly where the orb is supposed to read
+        // as biggest — multiplying against depthBase and erasing the
+        // growth growthProgress just built up. Raising the shrink floor
+        // toward 1 as growthProgress approaches its plateau closes off
+        // that cancellation while leaving the swing fully intact earlier
+        // in the page (growthProgress 0 reduces to the original formula
+        // exactly); the expand side keeps its full range throughout so
+        // breathing still reads as a lively pulse even at full size.
+        const breatheFloor = 1 - BREATHE_AMPLITUDE * (1 - growthProgress);
+        const breatheCeil = 1 + BREATHE_AMPLITUDE;
+        const rawBreathe = breatheFloor + openness * (breatheCeil - breatheFloor);
         const maxBreatheForSqueeze = (effectiveHalfWidth * 2) / (baseWidth * depthBase);
         currentBreatheScale += (Math.min(rawBreathe, maxBreatheForSqueeze) - currentBreatheScale) * WEAVE_LERP;
         // organicScale rides on top of the already-capped breathe value —
