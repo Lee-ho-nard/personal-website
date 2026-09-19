@@ -175,9 +175,9 @@
       // what turns that into a continuous, single-direction-at-a-time
       // motion instead of a visible jump or backtrack.
       const WEAVE_LERP = 0.12;
-      // +/-25% size swing — big enough to actually notice while scrolling
+      // +/-35% size swing — big enough to actually notice while scrolling
       // at a normal pace, not just on a before/after screenshot.
-      const BREATHE_AMPLITUDE = 0.25;
+      const BREATHE_AMPLITUDE = 0.35;
       // Distance the weave fades in over at the very top of the page, so
       // the orb starts dead-center in the rings at load rather than
       // popping straight to a lean. Deliberately short and NOT tied to
@@ -190,16 +190,24 @@
       // a pop, short enough that it's always finished well before any
       // real section could reach the orb's band.
       const WEAVE_INTRO_DISTANCE = 60;
+      // Max combined amplitude of the organic scale wobble below (see
+      // ORGANIC_SCALE_AMP1/2) — folded into the safety margin rather than
+      // the render-time cap, since the wobble is applied after that cap
+      // (see finalScale) and needs its own small allowance to stay covered.
+      const ORGANIC_SCALE_HEADROOM = 0.04;
       // The safety clamp below has to assume the largest the orb could
       // possibly render at (see orbHalfWidthSafe) so a bigger breathing
-      // swing needs a correspondingly bigger safety allowance here.
-      const BREATHE_SAFETY_FACTOR = 1 + BREATHE_AMPLITUDE;
+      // swing — or a bit of organic scale wobble riding on top of it —
+      // needs a correspondingly bigger safety allowance here.
+      const BREATHE_SAFETY_FACTOR = 1 + BREATHE_AMPLITUDE + ORGANIC_SCALE_HEADROOM;
       // The orb's base size (independent of breathing) at full scroll
       // depth — up from the receded 0.65 back past its original 1 and on
       // to a noticeably larger resting size, so the page reads as the orb
       // growing in presence as you go, not just breathing around one
-      // fixed size the whole way down.
-      const BASE_GROWTH_PLATEAU = 1.3;
+      // fixed size the whole way down. Combined with BREATHE_AMPLITUDE at
+      // its widest-open moments, this is what gets the orb to roughly a
+      // third of the viewport width at its largest (see baseWidth).
+      const BASE_GROWTH_PLATEAU = 1.65;
       // How far into the main content (as a fraction of the distance from
       // the header's end to the last real content, per page) the growth
       // above finishes and levels off — short of 1 so it's flat well
@@ -334,7 +342,13 @@
         const scale = 1 - progress * 0.35; // recede as you scroll past the header
         const drift = -progress * 40; // px, drifts up slightly toward its resting slot
 
-        const baseWidth = Math.min(320, window.innerWidth * 0.55);
+        // Mirrors the .sphere CSS rule's own width/height (min(520px,
+        // 18vw)) exactly — this is a re-derivation of the orb's real
+        // rendered natural (scale-1) size in JS, not an independent guess,
+        // because the safety math below measures clearance against actual
+        // pixels. If the two formulas ever diverge, the clamp starts
+        // reasoning about a size the orb doesn't really render at.
+        const baseWidth = Math.min(window.innerWidth * 0.18, 520);
         const frameRect = frame.getBoundingClientRect();
         const naturalCenterX = frameRect.right - restRightTweak - baseWidth / 2;
 
@@ -469,11 +483,46 @@
         // a moving target, so it can briefly lag on the wrong side of a
         // *newly tightened* bound — this makes sure what actually renders
         // is never outside this frame's own measured-safe range, whatever
-        // the smoothed value was heading toward.
-        const weaveX = boundedLower <= boundedUpper
+        // the smoothed value was heading toward. Kept as its own variable
+        // (not yet the final render value) so the persisted currentWeaveX
+        // — what next frame's lerp starts from — stays exactly this
+        // deliberate, already-safe position, never the organic-wobbled
+        // one below; letting the wobble leak into it would mean the lerp
+        // spends every frame chasing its own noise instead of the actual
+        // scroll/weave target.
+        const deliberateWeaveX = boundedLower <= boundedUpper
           ? Math.min(boundedUpper, Math.max(boundedLower, currentWeaveX))
           : infeasibleFallback;
-        currentWeaveX = weaveX;
+        currentWeaveX = deliberateWeaveX;
+
+        // Organic drift: a slow, continuous, time-driven wobble — not
+        // scroll- or cursor-derived at all — layered on top of the
+        // deliberate scroll/weave/cursor-follow position so the orb never
+        // sits perfectly still or traces a perfectly predictable path,
+        // the way a lava lamp never repeats itself. Two sine terms per
+        // axis at deliberately unrelated, slow frequencies (~35–140s
+        // periods) so the combined path doesn't read as a simple
+        // back-and-forth. Sized off baseWidth so it stays proportional as
+        // the orb's own scale changes with viewport width and scroll
+        // depth, rather than a flat px amount that would look oversized
+        // on a small orb and imperceptible on a large one.
+        const t = performance.now() / 1000;
+        const organicAmpX = baseWidth * 0.07;
+        const organicAmpY = baseWidth * 0.045;
+        const organicX = organicAmpX * Math.sin(t * 0.13 + 1.7) + organicAmpX * 0.5 * Math.sin(t * 0.071 + 4.1);
+        const organicY = organicAmpY * Math.sin(t * 0.091 + 0.6) + organicAmpY * 0.5 * Math.sin(t * 0.047 + 2.3);
+        const organicScale = 1
+          + 0.025 * Math.sin(t * 0.061 + 0.9)
+          + 0.015 * Math.sin(t * 0.103 + 3.4);
+
+        // The wobble is added AFTER the deliberate position is already
+        // safe, then the combined value is re-clamped into this frame's
+        // bounds — so a few px of independent drift can never itself be
+        // what pushes the orb into text, whatever the deliberate part was
+        // already doing.
+        const weaveX = boundedLower <= boundedUpper
+          ? Math.min(boundedUpper, Math.max(boundedLower, deliberateWeaveX + organicX))
+          : infeasibleFallback;
 
         // Breathing: near its natural center (small weave offset) the orb
         // reads as being in open space and grows; leaning hard toward a
@@ -485,11 +534,15 @@
         // makes the orb visibly shrink extra to fit, through the same
         // lerp, rather than rendering past the space it was just solved
         // to fit within.
-        const openness = 1 - Math.min(1, Math.abs(weaveX) / 220);
+        const openness = 1 - Math.min(1, Math.abs(deliberateWeaveX) / 220);
         const rawBreathe = 1 + (openness - 0.5) * (BREATHE_AMPLITUDE * 2);
         const maxBreatheForSqueeze = (effectiveHalfWidth * 2) / (baseWidth * depthBase);
         currentBreatheScale += (Math.min(rawBreathe, maxBreatheForSqueeze) - currentBreatheScale) * WEAVE_LERP;
-        const finalScale = depthBase * currentBreatheScale;
+        // organicScale rides on top of the already-capped breathe value —
+        // ORGANIC_SCALE_HEADROOM is exactly the margin BREATHE_SAFETY_FACTOR
+        // reserved for it, so this can never push the rendered size past
+        // what the clearance math upstream assumed.
+        const finalScale = depthBase * currentBreatheScale * organicScale;
 
         // Fades out only in the real final stretch before the footer, never
         // while any zigzag content is still on screen — using a fixed
@@ -503,7 +556,7 @@
         const fadeProgress = Math.min(1, Math.max(0, (scrollY - fadeStart) / fadeRange));
 
         scrollSphere.style.setProperty("--scroll-scale", finalScale.toFixed(3));
-        scrollSphere.style.setProperty("--scroll-y", drift.toFixed(1) + "px");
+        scrollSphere.style.setProperty("--scroll-y", (drift + organicY).toFixed(1) + "px");
         scrollSphere.style.setProperty("--scroll-x", weaveX.toFixed(1) + "px");
         scrollSphere.style.setProperty("--scroll-opacity", (1 - fadeProgress).toFixed(3));
 

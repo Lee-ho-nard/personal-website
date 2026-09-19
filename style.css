@@ -64,15 +64,17 @@
      enough to simultaneously touch two consecutive zigzag elements' text
      at once, or there'd be no single X position (at any size) that clears
      both an already-passed left-aligned block and an approaching right-
-     aligned one at the same time. Since the orb now grows with scroll
-     depth (see BASE_GROWTH_PLATEAU in motion.js) on top of its own
-     breathing, its worst-case band is bigger than a fixed-size orb's —
-     roughly baseWidth × BASE_GROWTH_PLATEAU × BREATHE_SAFETY_FACTOR
-     (320 × 1.3 × 1.25 ≈ 520px) — so this gap has to clear that, not just
-     the receded-only ~220px it was originally sized for. Verified via
-     getBoundingClientRect sweeps across every zigzag transition on every
-     page, not assumed. */
-  --zigzag-gap: 560px;
+     aligned one at the same time. baseWidth is viewport-relative
+     (min(520px, 18vw) in both this file's .sphere rule and motion.js's
+     tickScrollOrb), so the worst case scales with viewport width too —
+     at the widest width this site is actually verified at (1700px:
+     baseWidth 306px × BASE_GROWTH_PLATEAU 1.65 × BREATHE_SAFETY_FACTOR
+     1.39 ≈ 700px), not the largest this formula could produce on an
+     unbounded monitor. The safety solver in motion.js is what actually
+     guarantees no overlap even past that; this gap just keeps the
+     multi-element case rare. Verified via getBoundingClientRect sweeps
+     across every zigzag transition on every page, not assumed. */
+  --zigzag-gap: 740px;
 
   /* Motion */
   --duration-fast: 150ms;
@@ -173,14 +175,19 @@ a {
 
 .sphere {
   position: absolute;
-  /* Centered on the same point as .ring--outer/.ring--inner (both average
-     to a center 100px down / 165px in from the hero's top-right corner) —
-     keep this in sync with the rings if their offsets ever change. Verified
-     via getBoundingClientRect against the live rings, not assumed math. */
+  /* Anchored near the same corner as .ring--outer/.ring--inner, though at
+     this size it now reads as a large, dominant field the rings sit
+     inside of rather than a same-scale companion shape — intentional (see
+     Hero Gradient Sphere in design.md). */
   top: -60px;
   right: -5px;
-  width: min(320px, 55vw);
-  height: min(320px, 55vw);
+  /* This natural (scale-1) size is mirrored exactly by `baseWidth` in
+     motion.js's tickScrollOrb — the safety-clamp math there measures
+     clearance against this real px size, so if this formula ever changes,
+     that one must change with it or the clamp will be computing against a
+     size the orb doesn't actually render at. */
+  width: min(520px, 18vw);
+  height: min(520px, 18vw);
   border-radius: 50%;
   background: var(--gradient-iridescent-sphere);
   z-index: 0;
