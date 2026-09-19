@@ -258,18 +258,86 @@
       // half-width out of these bases lets tickScrollOrb solve for the
       // largest half-width that still fits, rather than the fixed
       // "everywhere" size demanding an X position that doesn't exist.
+      // How far (in px of vertical gap) a zigzag element's constraint fades
+      // in before it's actually touching the orb's band, instead of
+      // switching on the instant `rect.bottom`/`rect.top` crosses
+      // orbTop/orbBottom. Without this, boundedLower/boundedUpper in
+      // tickScrollOrb can swing by hundreds of px across a single small
+      // scroll step wherever an element's rect crosses that edge — harmless
+      // scrolling down, where the deliberate position starts centered and
+      // just lerps outward as the bound loosens, but scrolling up through
+      // the same point it's carrying a large lean built up while bounds
+      // were wide, and the hard safety clamp (which has to apply instantly,
+      // not lerp, to guarantee the render is never unsafe) then has to snap
+      // it back hundreds of px in one frame — a visible pop that only shows
+      // up going up. Fading the contribution in over real distance removes
+      // the discontinuity at the source: by the time an element is actually
+      // at gap 0 (touching the band), the full EDGE_MARGIN clearance is
+      // still enforced exactly as before, so nothing here weakens the
+      // guarantee — it only changes how early a still-distant element
+      // starts nudging the bound.
+      // Wide enough that even the steepest part of the fade below (see
+      // BAND_FALLOFF_POWER) spreads a several-hundred-px swing in the bound
+      // over a genuinely scrollable distance rather than compressing it
+      // into ~100px — measured directly (a fine-grained, scroll-invariant
+      // resweep of boundedLower/boundedUpper across the whole page), this
+      // roughly halves the worst-case px-of-bound-change per px-of-scroll
+      // versus a much narrower transition, which is what actually stops
+      // the hard clamp from having to catch up in one visible snap.
+      // Deliberately kept under half of --zigzag-gap (740px, see the CSS):
+      // a wider value measurably smoother in isolation started reaching
+      // far enough that two adjacent zigzag elements' transition zones
+      // overlapped, which manufactured brand-new scrollY ranges where
+      // neither text bound could be satisfied at once — a regression the
+      // solver's existing infeasible-fallback masks safely, but that's a
+      // reason not to lean on it more than the original design did, not a
+      // reason to accept trading it away for extra smoothness.
+      const BAND_TRANSITION = 350;
+      // Stands in for "this element doesn't constrain the orb at all" —
+      // used instead of true Infinity so lowerBase/upperBase are always
+      // finite (isFinite(lowerBase)/isFinite(upperBase) downstream in
+      // tickScrollOrb must never flip, or the discontinuity just moves from
+      // "in the band" to "isFinite flips", switching on a different
+      // downstream branch regardless of how gently the value underneath it
+      // moved). Large enough that it never wins a Math.min/max against a
+      // genuinely nearby element or meaningfully perturbs the arithmetic
+      // downstream, but — unlike a first attempt at this — NOT so large
+      // that multiplying it by even a small (1 - fraction) still produces
+      // an enormous relax partway through the transition: a first version
+      // used a symmetric cosine ease for `fraction`, which is already
+      // noticeably below 1 a third of the way through BAND_TRANSITION —
+      // fine for a small amplitude, but reaching a "mostly faded" fraction
+      // that early, multiplied by a sentinel this size, swamped the real
+      // (tens-of-px-scale) constraint value almost immediately, leaving
+      // the same hundreds-of-px swing as no fade at all, just spread a
+      // little wider. Pairing it with the steep `t^POW` falloff below,
+      // which stays within a percent or two of fully active for most of
+      // the transition and only drops sharply right at the boundary,
+      // keeps relax at a small, comparable-to-EDGE_MARGIN scale for any
+      // gap that's actually still close, and reserves this large a
+      // correction for gaps genuinely near or past BAND_TRANSITION.
+      const BAND_SENTINEL = 4000;
+      // How sharply `fraction` stays near 1 before dropping toward 0 as
+      // gap approaches BAND_TRANSITION — see BAND_SENTINEL's comment for
+      // why this shape (not a symmetric ease) is what keeps the relax
+      // small while an element is still meaningfully close.
+      const BAND_FALLOFF_POWER = 4;
+
       function safetyBaseAt(orbTop, orbBottom, naturalCenterX) {
-        let lowerBase = -Infinity;
-        let upperBase = Infinity;
+        let lowerBase = -BAND_SENTINEL;
+        let upperBase = BAND_SENTINEL;
         zigzagEls.forEach((el, i) => {
           const rect = el.getBoundingClientRect();
-          if (rect.bottom < orbTop || rect.top > orbBottom) return;
+          const gap = Math.max(orbTop - rect.bottom, rect.top - orbBottom, 0);
           const edges = textEdges(el);
           if (!isFinite(edges.left)) return;
+          const t = Math.min(1, gap / BAND_TRANSITION);
+          const fraction = 1 - Math.pow(t, BAND_FALLOFF_POWER); // 1 at gap 0, stays near 1 through most of the transition, drops to 0 by gap BAND_TRANSITION
+          const relax = (1 - fraction) * BAND_SENTINEL;
           if (i % 2 === 1) {
-            upperBase = Math.min(upperBase, edges.left - EDGE_MARGIN - naturalCenterX);
+            upperBase = Math.min(upperBase, edges.left - EDGE_MARGIN - naturalCenterX + relax);
           } else {
-            lowerBase = Math.max(lowerBase, edges.right + EDGE_MARGIN - naturalCenterX);
+            lowerBase = Math.max(lowerBase, edges.right + EDGE_MARGIN - naturalCenterX - relax);
           }
         });
         return { lowerBase, upperBase };
@@ -424,22 +492,19 @@
         // happens the candidates below shrink the orb until it fits
         // rather than letting either side win outright.
         const VIEWPORT_BLEED_FRACTION = 0.6;
-        const halfWidthCandidates = [orbHalfWidthSafe];
-        if (isFinite(lowerBase)) {
+        // lowerBase/upperBase are always finite now (see BAND_SENTINEL
+        // above), so all three candidates always apply — no isFinite
+        // gating needed here or below.
+        const halfWidthCandidates = [
+          orbHalfWidthSafe,
           // Largest half-width for which clearing this left-aligned text
           // (lowerBase + hw) still stays within the viewport-bleed bound
           // on the right (innerWidth + BLEED*hw - naturalCenterX).
-          halfWidthCandidates.push(
-            (window.innerWidth - naturalCenterX - lowerBase) / (1 - VIEWPORT_BLEED_FRACTION)
-          );
-        }
-        if (isFinite(upperBase)) {
+          (window.innerWidth - naturalCenterX - lowerBase) / (1 - VIEWPORT_BLEED_FRACTION),
           // Same, mirrored for a right-aligned text pulling left.
-          halfWidthCandidates.push((upperBase + naturalCenterX) / (1 - VIEWPORT_BLEED_FRACTION));
-        }
-        if (isFinite(lowerBase) && isFinite(upperBase)) {
-          halfWidthCandidates.push((upperBase - lowerBase) / 2);
-        }
+          (upperBase + naturalCenterX) / (1 - VIEWPORT_BLEED_FRACTION),
+          (upperBase - lowerBase) / 2,
+        ];
         // Effectively just an epsilon, not a preferred minimum: any real
         // floor here can itself override the exact feasible size above
         // and reintroduce an infeasible clamp — tried at both 0.25× and
@@ -450,8 +515,8 @@
         const MIN_ORB_HALF_WIDTH = 2;
         const effectiveHalfWidth = Math.max(MIN_ORB_HALF_WIDTH, Math.min(...halfWidthCandidates));
 
-        const lower = isFinite(lowerBase) ? lowerBase + effectiveHalfWidth : -Infinity;
-        const upper = isFinite(upperBase) ? upperBase - effectiveHalfWidth : Infinity;
+        const lower = lowerBase + effectiveHalfWidth;
+        const upper = upperBase - effectiveHalfWidth;
         const maxCenterBleed = effectiveHalfWidth * VIEWPORT_BLEED_FRACTION;
         const viewportLower = -maxCenterBleed - naturalCenterX;
         const viewportUpper = window.innerWidth + maxCenterBleed - naturalCenterX;
@@ -464,14 +529,24 @@
         // principle even negative, if a text edge alone can't be cleared
         // within the allowed viewport bleed at any size). Text safety is
         // the one guarantee that has to hold regardless, so the fallback
-        // here targets whichever text bound(s) are actually active and
-        // ignores the viewport-bleed preference entirely, rather than
-        // splitting the difference and satisfying neither exactly.
-        const infeasibleFallback = isFinite(lower) && isFinite(upper)
+        // here targets the active text bound(s) directly, ignoring the
+        // viewport-bleed preference entirely, rather than splitting the
+        // difference and satisfying neither exactly. lowerBase/upperBase
+        // are always finite now (see BAND_SENTINEL above), so "active"
+        // isn't isFinite anymore — a side that's genuinely unconstrained
+        // still sits close to ±BAND_SENTINEL, so anything well short of
+        // that (any realistic real constraint is nowhere close to that
+        // magnitude) is the real thing; averaging a real constraint
+        // against an unconstrained side's ~4000px sentinel would blow the
+        // fallback miles past where the one real constraint actually
+        // wants it.
+        const lowerActive = lowerBase > -BAND_SENTINEL / 2;
+        const upperActive = upperBase < BAND_SENTINEL / 2;
+        const infeasibleFallback = lowerActive && upperActive
           ? (lower + upper) / 2
-          : isFinite(lower)
+          : lowerActive
             ? lower
-            : isFinite(upper)
+            : upperActive
               ? upper
               : (viewportLower + viewportUpper) / 2;
         const rawWeaveX = boundedLower <= boundedUpper
