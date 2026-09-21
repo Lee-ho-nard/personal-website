@@ -190,17 +190,6 @@
         const ambientFrequency = o.ambientBumps.map((n) => n / safeSizePx);
         const pressFrequency = o.pressBumps / safeSizePx;
         const displacementScale = o.displacementFraction * safeSizePx;
-        // TEMPORARY diagnostic — remove once the live Infinity report is
-        // root-caused. A persistent array on window, not console.log:
-        // console messages from very early in a fresh navigation can be
-        // missed by external tooling before its protocol connection
-        // attaches, but reading this array's *current* state after load
-        // has no such window — every call this function ever made is
-        // still sitting right here to inspect.
-        (window.__liquidDebugLog = window.__liquidDebugLog || []).push({
-          t: performance.now(), sizePxIn: sizePx, safeSizePx, ambientFrequency, pressFrequency, displacementScale,
-          innerWidth: window.innerWidth, clientWidth: document.documentElement.clientWidth,
-        });
 
         // Cursor "press" position/reach, expressed as an ordinary radial
         // gradient (white -> transparent) painted onto a unit rect and
@@ -311,6 +300,24 @@
       });
       let liquid = buildLiquidFilter(filterId, orbSize(), liquidOpts());
       sphere.style.filter = "url(#" + filterId + ")";
+
+      // window.innerWidth (and even document.documentElement.clientWidth)
+      // can read 0 at the exact moment this script first runs on a fresh
+      // navigation — confirmed live in production, not hypothetical (see
+      // baseOrbWidth's own comment) — which the fallback chain there
+      // absorbs into a rough guess rather than a broken filter, but a
+      // guess all the same. One requestAnimationFrame later, a real
+      // layout pass has always happened, so rebuild once, immediately,
+      // with the now-accurate size — cheap enough (one extra filter
+      // build, once, at load) that the very first thing a visitor sees
+      // isn't left depending on a `resize` event that may never come to
+      // correct a merely-approximate initial guess.
+      requestAnimationFrame(() => {
+        liquid.filter.remove();
+        liquid.grad.remove();
+        liquid.maskRect.remove();
+        liquid = buildLiquidFilter(filterId, orbSize(), liquidOpts());
+      });
 
       let resizeTimer;
       window.addEventListener("resize", () => {
