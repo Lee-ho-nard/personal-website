@@ -8,6 +8,10 @@
 
   const styles = getComputedStyle(document.documentElement);
   const px = (name, fallback) => parseFloat(styles.getPropertyValue(name)) || fallback;
+  const durStr = (name, fallback) => {
+    const raw = styles.getPropertyValue(name).trim();
+    return /^[\d.]+m?s$/.test(raw) ? raw : fallback;
+  };
 
   // --- Orb cursor-follow (every page — whichever .orb-frame/.sphere exists) ---
   if (canHover && !reducedMotion) {
@@ -60,6 +64,300 @@
         sphere.style.setProperty("--orb-y", currentY.toFixed(2) + "px");
         requestAnimationFrame(tickOrb);
       })();
+    }
+  }
+
+  // --- Liquid/goo SVG filter (every page, replaces the old CSS
+  // border-radius wobble) ---
+  // A real feTurbulence + feDisplacementMap filter, not a border-radius
+  // trick: border-radius can only ever draw a rounded-rectangle-family
+  // shape (so its "organic" version reads as a lumpy oval, never as
+  // independent asymmetric bumps/dents), because it's reshaping the
+  // element's own box, not its rendered pixels. A displacement-map
+  // filter instead pushes every pixel of the actual rendered gradient
+  // around by a noise field, which is what produces genuine, uneven,
+  // water-droplet-like edges. The former hue-drift CSS animation is
+  // folded into this same filter too (as an feColorMatrix), rather than
+  // living on `.sphere` as a separate `filter` keyframe animation — CSS
+  // can only have one `filter` value active on an element at a time, so
+  // an old-style `animation: orb-hue-drift ...` would have silently
+  // clobbered a static `filter: url(#orb-goo)` (or vice versa) every
+  // frame. Bundling both into one SVG filter graph removes that
+  // conflict entirely and keeps `.sphere`'s own `filter` property a
+  // single, static reference.
+  if (!reducedMotion) {
+    const frame = document.querySelector(".orb-frame");
+    const sphere = frame ? frame.querySelector(".sphere") : null;
+
+    if (frame && sphere) {
+      const SVG_NS = "http://www.w3.org/2000/svg";
+      const svgEl = (tag, attrs) => {
+        const el = document.createElementNS(SVG_NS, tag);
+        for (const key in attrs) el.setAttribute(key, attrs[key]);
+        return el;
+      };
+
+      // Rough, deliberately conservative low-end signal: real per-device
+      // frame-budget testing isn't something a load-time script can do
+      // (see the perf notes in design.md for what *was* measured, live,
+      // during development) — hardwareConcurrency is just a coarse proxy
+      // available before any frames have even rendered. Used only to
+      // decide whether the more expensive cursor-press layer and the
+      // full update rate are worth it, never to disable the ambient
+      // effect entirely (that one's a fixed, filter-graph-time cost, not
+      // a per-frame one — see buildLiquidFilter's own comment).
+      const isLikelyLowEnd = typeof navigator.hardwareConcurrency === "number" && navigator.hardwareConcurrency > 0 && navigator.hardwareConcurrency <= 4;
+
+      // Reusable factory: builds one complete <filter> (ambient
+      // turbulence + hue rotation, both animated via SMIL so they cost
+      // nothing on the JS thread; an optional cursor-press layer that
+      // JS *does* drive, since it has to track real pointer input) and
+      // appends it to a single shared, hidden <svg> defs host shared by
+      // every filter on the page. Takes the target's real natural size
+      // (in px, at scale 1 — i.e. before any `transform: scale()`, which
+      // the filtered result rides along with automatically since the
+      // whole element is rasterized-then-scaled) and derives every
+      // geometric value from it — baseFrequency as "N cycles across the
+      // element," displacement as "a fraction of the element's own
+      // size" — rather than a `primitiveUnits="objectBoundingBox"`
+      // filter with fixed unitless values, which is the spec-correct
+      // way to get this but measurably did *not* behave consistently
+      // across element sizes in testing (feTurbulence's bbox-relative
+      // frequency handling is a known cross-engine soft spot). Deriving
+      // the same numbers from real px in JS instead is what actually
+      // makes this reusable at another scale later — pass the bleed
+      // element's own size to the same function and it reproduces the
+      // same *relative* look, without touching the filter graph itself.
+      function getFilterHost() {
+        let host = document.getElementById("liquid-filter-defs");
+        if (host) return host;
+        host = svgEl("svg", { id: "liquid-filter-defs", "aria-hidden": "true", focusable: "false" });
+        host.style.position = "absolute";
+        host.style.width = "0";
+        host.style.height = "0";
+        host.style.overflow = "hidden";
+        const defs = svgEl("defs", {});
+        host.appendChild(defs);
+        document.body.appendChild(host);
+        return host;
+      }
+
+      // sizePx: the element's own natural (untransformed) width/height in
+      // px — used to convert every "N cycles" / "fraction of size" knob
+      // below into the absolute px values feTurbulence/feDisplacementMap
+      // actually take (their default `primitiveUnits="userSpaceOnUse"`
+      // is what's reliably supported, unlike objectBoundingBox — see the
+      // comment above).
+      function buildLiquidFilter(id, sizePx, opts) {
+        const o = Object.assign({
+          ambientBumps: [1.8, 2.3, 1.5, 2.0, 1.8], // cycles across the element at each SMIL keyframe — a few slow, independent bumps, deliberately not fine grain (numOctaves stays at 1 below for the same reason)
+          ambientOctaves: 1,
+          ambientSeed: 5,
+          ambientDuration: durStr("--duration-orb-blob", "46s"),
+          hueDuration: durStr("--duration-orb", "48s"),
+          displacementFraction: 0.09, // final feDisplacementMap scale = this * sizePx
+          pressBumps: 6,
+          pressOctaves: 2,
+          pressSeed: 11,
+          pressBoost: 2.2, // feComponentTransfer slope — makes the press bump read as a distinct, firmer push, not just "more of the same ambient noise"
+          enablePress: true,
+        }, opts);
+
+        const defs = getFilterHost().querySelector("defs");
+        const ambientFrequency = o.ambientBumps.map((n) => n / sizePx);
+        const pressFrequency = o.pressBumps / sizePx;
+        const displacementScale = o.displacementFraction * sizePx;
+
+        // Cursor "press" position/reach, expressed as an ordinary radial
+        // gradient (white -> transparent) painted onto a unit rect and
+        // pulled into the filter via feImage — this is what turns a
+        // second turbulence layer into something that fades in with
+        // distance from a specific point instead of applying uniformly.
+        // r starts at 0 (no visible press) and is animated toward a real
+        // radius by JS only while the cursor is actually near the
+        // element (see the tick loop below); shrinking it back to 0 is
+        // what "fades out ... and eases back to the ambient idle state"
+        // means concretely at the filter-graph level.
+        const grad = svgEl("radialGradient", { id: id + "-grad", cx: "50%", cy: "50%", r: "0%" });
+        grad.appendChild(svgEl("stop", { offset: "0%", "stop-color": "#fff", "stop-opacity": "1" }));
+        grad.appendChild(svgEl("stop", { offset: "60%", "stop-color": "#fff", "stop-opacity": "0.55" }));
+        grad.appendChild(svgEl("stop", { offset: "100%", "stop-color": "#fff", "stop-opacity": "0" }));
+        defs.appendChild(grad);
+        const maskRect = svgEl("rect", { id: id + "-mask-rect", x: "0", y: "0", width: "1", height: "1", fill: "url(#" + id + "-grad)" });
+        defs.appendChild(maskRect);
+
+        const filter = svgEl("filter", {
+          id,
+          x: "-60%", y: "-60%", width: "220%", height: "220%",
+          "color-interpolation-filters": "sRGB",
+        });
+
+        const ambient = svgEl("feTurbulence", {
+          type: "fractalNoise",
+          baseFrequency: String(ambientFrequency[0]),
+          numOctaves: String(o.ambientOctaves),
+          seed: String(o.ambientSeed),
+          result: "ambientTurb",
+        });
+        const ambientAnim = svgEl("animate", {
+          attributeName: "baseFrequency",
+          values: ambientFrequency.join(";"),
+          dur: o.ambientDuration,
+          repeatCount: "indefinite",
+          calcMode: "spline",
+          keySplines: ambientFrequency.slice(1).map(() => "0.4 0 0.2 1").join(";"),
+        });
+        ambient.appendChild(ambientAnim);
+        filter.appendChild(ambient);
+
+        let noiseSource = "ambientTurb";
+
+        if (o.enablePress) {
+          // x/y/width/height as percentages (not the same 0/1 unit
+          // square the maskRect itself uses) since percentages on a
+          // filter primitive's own subregion always resolve against the
+          // filter region regardless of primitiveUnits, sidestepping the
+          // same reliability question that ruled out objectBoundingBox
+          // above.
+          filter.appendChild(svgEl("feImage", {
+            href: "#" + id + "-mask-rect", x: "0%", y: "0%", width: "100%", height: "100%",
+            result: "cursorMask", preserveAspectRatio: "none",
+          }));
+          filter.appendChild(svgEl("feTurbulence", {
+            type: "turbulence", baseFrequency: String(pressFrequency),
+            numOctaves: String(o.pressOctaves), seed: String(o.pressSeed), result: "pressTurbRaw",
+          }));
+          const boost = svgEl("feComponentTransfer", { in: "pressTurbRaw", result: "pressBoosted" });
+          ["feFuncR", "feFuncG"].forEach((fn) => {
+            boost.appendChild(svgEl(fn, { type: "linear", slope: String(o.pressBoost), intercept: String(-(o.pressBoost - 1) / 2) }));
+          });
+          filter.appendChild(boost);
+          filter.appendChild(svgEl("feComposite", { in: "pressBoosted", in2: "cursorMask", operator: "in", result: "pressMasked" }));
+          filter.appendChild(svgEl("feComposite", {
+            in: "ambientTurb", in2: "pressMasked", operator: "arithmetic",
+            k1: "0", k2: "1", k3: "1", k4: "0", result: "combinedNoise",
+          }));
+          noiseSource = "combinedNoise";
+        }
+
+        filter.appendChild(svgEl("feDisplacementMap", {
+          in: "SourceGraphic", in2: noiseSource, scale: String(displacementScale),
+          xChannelSelector: "R", yChannelSelector: "G", result: "displaced",
+        }));
+
+        // Folds the old orb-hue-drift CSS keyframe animation in here —
+        // see the block comment above for why it has to live inside the
+        // same filter rather than as a separate `filter` animation.
+        const hue = svgEl("feColorMatrix", { in: "displaced", type: "hueRotate", values: "0" });
+        hue.appendChild(svgEl("animate", {
+          attributeName: "values", from: "0", to: "360", dur: o.hueDuration, repeatCount: "indefinite",
+        }));
+        filter.appendChild(hue);
+
+        defs.appendChild(filter);
+        return { filter, grad, maskRect };
+      }
+
+      // Mirrors .sphere's own CSS width/height (min(580px, 20vw)) — see
+      // the equivalent comment on the GSAP waypoints' own baseWidth
+      // below. Only recomputed on resize, not on scroll: the orb's
+      // scroll-depth growth is a `transform: scale()` applied on top of
+      // this natural size, which scales the already-filtered result
+      // wholesale rather than changing the element's own box, so the
+      // filter never needs to react to it.
+      function orbSize() {
+        return Math.min(window.innerWidth * 0.2, 580);
+      }
+
+      const filterId = "orb-goo";
+      // numOctaves=1 for the ambient layer regardless of device tier —
+      // it's what keeps the silhouette to a few smooth bumps instead of
+      // fine grain (see ambientBumps' own comment); the press layer's
+      // extra octave (skipped on a likely low-end device) is what's
+      // actually tied to hardwareConcurrency here.
+      const liquidOpts = () => ({
+        enablePress: canHover,
+        pressOctaves: isLikelyLowEnd ? 1 : 2,
+      });
+      let liquid = buildLiquidFilter(filterId, orbSize(), liquidOpts());
+      sphere.style.filter = "url(#" + filterId + ")";
+
+      let resizeTimer;
+      window.addEventListener("resize", () => {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => {
+          // Every id-bearing piece this factory creates (the <filter>
+          // plus its own <radialGradient>/<rect> defs) has to go before
+          // rebuilding with the same id, or the stale ones linger as
+          // orphaned duplicate-id elements and the new filter's own
+          // feImage/url() references become ambiguous.
+          liquid.filter.remove();
+          liquid.grad.remove();
+          liquid.maskRect.remove();
+          liquid = buildLiquidFilter(filterId, orbSize(), liquidOpts());
+        }, 200);
+      });
+
+      // Cursor "press": gated the same way as the cursor-follow orb
+      // above (fine pointer + hover-capable only) — reuses the sphere's
+      // own live rect the same way, for the same reason (its fixed
+      // viewport position diverges from any ancestor's document
+      // position once the page scrolls).
+      if (canHover) {
+        let targetPX = 0.5;
+        let targetPY = 0.5;
+        let targetIntensity = 0;
+        let currentPX = 0.5;
+        let currentPY = 0.5;
+        let currentIntensity = 0;
+        const PRESS_RADIUS = 42; // max visible gradient radius, in % of the sphere's own bbox
+        const PRESS_LERP = 0.15;
+
+        window.addEventListener("pointermove", (e) => {
+          const rect = sphere.getBoundingClientRect();
+          const fx = (e.clientX - rect.left) / rect.width;
+          const fy = (e.clientY - rect.top) / rect.height;
+          const dx = fx - 0.5;
+          const dy = fy - 0.5;
+          const dist = Math.hypot(dx, dy);
+          // A little past the visible edge, same spirit as the
+          // cursor-follow orb's own 1.5x-diameter catch radius — reads
+          // as "pressing into" the orb starting just before the cursor
+          // visually reaches it, not only once it's exactly inside.
+          if (dist > 0.9) {
+            targetIntensity = 0;
+            return;
+          }
+          targetPX = fx;
+          targetPY = fy;
+          targetIntensity = 1;
+        }, { passive: true });
+
+        window.addEventListener("pointerleave", () => {
+          targetIntensity = 0;
+        });
+
+        // Throttled to every other frame (~30fps on a 60Hz display) as
+        // a cheap, always-on mitigation for the one part of this effect
+        // that's genuinely JS-driven per frame — see design.md for the
+        // measured cost this is guarding against. The ambient turbulence
+        // and hue rotation above never touch JS at all (pure SMIL), so
+        // they aren't affected by this throttle.
+        let frameSkip = 0;
+        const updateRate = isLikelyLowEnd ? 3 : 2;
+        (function tickPress() {
+          frameSkip = (frameSkip + 1) % updateRate;
+          if (frameSkip === 0) {
+            currentPX += (targetPX - currentPX) * PRESS_LERP;
+            currentPY += (targetPY - currentPY) * PRESS_LERP;
+            currentIntensity += (targetIntensity - currentIntensity) * PRESS_LERP;
+            liquid.grad.setAttribute("cx", (currentPX * 100).toFixed(1) + "%");
+            liquid.grad.setAttribute("cy", (currentPY * 100).toFixed(1) + "%");
+            liquid.grad.setAttribute("r", (currentIntensity * PRESS_RADIUS).toFixed(1) + "%");
+          }
+          requestAnimationFrame(tickPress);
+        })();
+      }
     }
   }
 
