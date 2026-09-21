@@ -228,7 +228,13 @@ a {
     position: fixed;
     top: var(--orb-rest-top);
     right: var(--orb-rest-right);
-    transform: translate(var(--orb-x, 0px), var(--orb-y, 0px)) translate(var(--scroll-x, 0px), var(--scroll-y, 0px)) scale(var(--scroll-scale, 1));
+    /* --scroll-x/--scroll-y/--scroll-scale/--scroll-opacity are owned by
+       the GSAP ScrollTrigger waypoint timeline in motion.js; --organic-x/
+       --organic-y/--organic-scale are a separate, independent time-driven
+       wobble layered on top via its own requestAnimationFrame tick, so it
+       keeps running regardless of what the scroll timeline is doing (see
+       motion.js) rather than being computed inside the same tween. */
+    transform: translate(var(--orb-x, 0px), var(--orb-y, 0px)) translate(var(--scroll-x, 0px), var(--scroll-y, 0px)) translate(var(--organic-x, 0px), var(--organic-y, 0px)) scale(var(--scroll-scale, 1)) scale(var(--organic-scale, 1));
     opacity: var(--scroll-opacity, 1);
     transition: opacity var(--duration-base) var(--ease-standard);
   }
@@ -438,10 +444,15 @@ section {
   margin-bottom: var(--spacing-76);
 }
 
-/* Keeps Now/Contact's text above the roaming hero orb (see motion.js)
-   when it passes behind them, same as the hero headline over the sphere. */
-#now,
-#contact {
+/* Keeps every zigzag block's text above the roaming hero orb (see
+   motion.js) if it ever passes near/behind it, same as the hero headline
+   over the sphere. The hand-authored waypoint system that positions the
+   orb no longer re-measures text on every frame the way the old solver
+   did, so this is now the real fallback for the rare case a waypoint
+   still ends up close to a line of text (most likely at an unusually
+   narrow viewport) — text always wins the stacking order, on every page,
+   not just Home's Now/Contact. */
+.zigzag {
   position: relative;
   z-index: 1;
 }
