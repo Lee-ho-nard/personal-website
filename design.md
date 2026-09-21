@@ -75,7 +75,7 @@ OFF+BRAND. operates as a typographic architecture on warm parchment: a near-mono
 - **Section gap:** 76-119px
 - **Card padding:** 30px
 - **Element gap:** 19px
-- **Zigzag gap:** 380px (`--zigzag-gap`) — the gap before every `.zigzag` section after the first. Was 700px (itself re-derived against a since-replaced live safety solver's own margin, before that solver was replaced by the current hand-authored GSAP waypoint timeline — see Scroll-Linked Orb); tightened further to 380px specifically to close the dead scroll space between sections once real content density became the goal, re-verified via the same `getBoundingClientRect` overlap sweep at 700/1024/1700px used to place the waypoints. Tightening it further didn't meaningfully help the one real remaining squeeze (Work's and Life's second, last waypoint — see the waypoint lean token below) since that's driven by the depth-growth curve saturating on a short 2-section page regardless of gap, not by the gap itself.
+- **Zigzag gap:** 220px (`--zigzag-gap`) — the gap before every `.zigzag` section after the first. Was 700px (itself re-derived against a since-replaced live safety solver's own margin, before that solver was replaced by the current hand-authored GSAP waypoint timeline — see Scroll-Linked Orb), then 380px, then 220px — three tightening passes as "close the dead scroll space between sections" kept being the goal, each re-verified via the same `getBoundingClientRect` overlap sweep at 700/1024/1700px used to place the waypoints, on every page. The 380→220 pass confirmed this value isn't actually what's binding the one real remaining squeeze (Work's and Life's second, last waypoint — see the waypoint lean token below): each waypoint's position is re-measured live off the real DOM on every load/resize (see motion.js's `build()`), so it automatically tracks whatever this gap is, and the required-lean numbers barely moved between 380 and 220px — they're dominated by section-heading width and, on a short 2-section page, by the depth-growth curve saturating regardless of gap.
 - **Page edge right:** `--page-edge-right`, `calc(max(0px, (100vw - 1400px) / 2) + 30px)` — distance from the viewport's right edge to `.page`'s own right content edge at any width, used to keep the fixed-position orb aligned without duplicating this math in JS
 
 ## Tokens — Motion
@@ -359,7 +359,7 @@ Ataero Retina OB Edition is a custom font — not available on Google Fonts or A
   --section-gap: 76-119px;
   --card-padding: 30px;
   --element-gap: 19px;
-  --zigzag-gap: 380px;
+  --zigzag-gap: 220px;
   --page-edge-right: calc(max(0px, (100vw - 1400px) / 2) + 30px);
 
   /* Border Radius */

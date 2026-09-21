@@ -65,19 +65,26 @@
      to keep the fixed-position orb aligned with hero-relative content
      across breakpoints without duplicating this math in JS. */
   --page-edge-right: calc(max(0px, (100vw - var(--page-max-width)) / 2) + var(--spacing-30));
-  /* Vertical gap before every zigzag section after the first. Was 700px,
-     sized against a since-replaced live safety solver's own floor (see
-     motion.js's Scroll-Linked Orb docs in design.md) — now that the
-     orb's position is a set of hand-placed GSAP waypoints rather than a
-     value that solver had to find room for, this is free to be a purely
-     visual-density decision instead. Tightened to close the dead scroll
-     space between sections; re-verified (not assumed) via the same
-     getBoundingClientRect overlap sweep at 700/1024/1700px used to
-     originally place the waypoints, on every page, after this change
-     and the larger section headings/added copy that shipped alongside
-     it — see design.md's Scroll-Linked Orb section for the resulting
-     numbers. */
-  --zigzag-gap: 380px;
+  /* Vertical gap before every zigzag section after the first. Was
+     700px, sized against a since-replaced live safety solver's own
+     floor (see motion.js's Scroll-Linked Orb docs in design.md) — now
+     that the orb's position is a set of hand-placed GSAP waypoints
+     rather than a value that solver had to find room for, this is free
+     to be a purely visual-density decision instead. Went 700 → 380 →
+     220px across two tightening passes, both re-verified (not assumed)
+     via the same getBoundingClientRect overlap sweep at
+     700/1024/1700px used to originally place the waypoints, on every
+     page — the second pass confirmed this value isn't the thing
+     binding the waypoints' required lean (see the waypoint lean
+     fractions token in design.md): each waypoint's real position is
+     re-measured live off the actual DOM on every load/resize (see
+     motion.js's build()), so it tracks whatever this value is
+     automatically, and the required-lean numbers barely moved between
+     380 and 220px — they're dominated by section-heading width and,
+     on a short 2-section page, by depth-growth saturating regardless
+     of gap. See design.md's Scroll-Linked Orb section for the
+     resulting overlap numbers. */
+  --zigzag-gap: 220px;
 
   /* Motion */
   --duration-fast: 150ms;
