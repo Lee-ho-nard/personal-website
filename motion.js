@@ -223,17 +223,40 @@
       // natural rest position that several "understated" left-aligned
       // waypoints actually needed a small *rightward* lean to clear,
       // not just a smaller leftward one — the opposite direction from
-      // before. Work and Life's second waypoint (the only zigzag element
-      // on an otherwise-short page, so depth-growth is already at its
-      // plateau by the time it's reached) can't fully clear at 1024px
-      // even at this solver's -0.98 ceiling — a real, accepted residual
-      // overlap there, on the same terms as Home's Contact always was:
-      // covered by the z-index fallback, not a live guarantee.
+      // before.
+      //
+      // Deliberately re-spread a second time so magnitudes read as
+      // genuinely varied across a page rather than clustering at two
+      // poles (near-zero vs. near-max, which is what a purely
+      // clearance-driven derivation naturally produces, since only two
+      // real constraints exist — "needs real clearance" or "doesn't").
+      // Direction is still set by real geometry (right-aligned elements
+      // still lean left, left-aligned still lean small/rightward), but
+      // within the "needs real clearance" group, only one waypoint per
+      // page is pushed toward the solved maximum ("decisive") — the
+      // rest deliberately stop at "medium," short of what full clearance
+      // would ask for, trading some additional accepted overlap (beyond
+      // what the size increase above already added) for a path that
+      // doesn't read as two fixed extremes alternating. Work's and
+      // Life's lone "decisive" waypoint (their only real-clearance one)
+      // already couldn't fully clear even at the old -0.98 ceiling on a
+      // short 2-section page — that residual is now simply larger, on
+      // the same accepted terms as Home's Contact always was: covered by
+      // the z-index fallback, not a live guarantee.
+      // Work and Life each have only one waypoint that needs real
+      // clearance at all (their lone right-aligned element) — softening
+      // it toward "medium" the way Home's two and About's two are
+      // softened relative to each other buys no variety within the
+      // page (there's no second big-lean moment to contrast it
+      // against), it just adds overlap for nothing. Kept close to the
+      // solved maximum here instead; the varied-magnitude goal is
+      // satisfied across pages (this "decisive" reads differently from
+      // Home's/About's own, softer ones) rather than within these two.
       const WAYPOINT_PLANS = {
-        home: [0.10, -0.90, 0.10, -0.90, 0.15],
-        work: [0.12, -0.98],
-        about: [0.05, -0.65, 0.05, -0.65],
-        life: [0.11, -0.98],
+        home: [0.06, -0.85, 0.16, -0.45, 0.22],
+        work: [0.14, -0.92],
+        about: [0.06, -0.70, 0.18, -0.45],
+        life: [0.10, -0.92],
       };
       const page = document.body.dataset.orbPage;
       const leans = (page && WAYPOINT_PLANS[page])
@@ -258,11 +281,12 @@
         if (ctx) ctx.revert();
 
         ctx = gsap.context(() => {
-          // Mirrors the .sphere CSS rule's own width/height (min(520px,
-          // 18vw)) exactly — see the equivalent comment the previous
+          // Mirrors the .sphere CSS rule's own width/height (min(580px,
+          // 20vw), raised from 520px/18vw in a deliberate size-increase
+          // pass) exactly — see the equivalent comment the previous
           // system carried; if the two formulas ever diverge, this is
           // reasoning about a size the orb doesn't actually render at.
-          const baseWidth = Math.min(window.innerWidth * 0.18, 520);
+          const baseWidth = Math.min(window.innerWidth * 0.2, 580);
           const frameRect = frame.getBoundingClientRect();
           const naturalCenterX = frameRect.right - restRightTweak - baseWidth / 2;
           const frameHeight = frame.offsetHeight || 1;
@@ -311,7 +335,7 @@
             // to a sane range so no combination of hand-authored value +
             // random perturbation can send the orb's center past the
             // viewport's own left edge.
-            const lean = Math.max(-0.98, Math.min(0.2, (leans[i] ?? -0.2) + jitter[i].lean));
+            const lean = Math.max(-0.98, Math.min(0.25, (leans[i] ?? -0.2) + jitter[i].lean));
             return {
               y: Math.max(1, Math.min(fadeEnd - 1, targetScrollY + jitter[i].t * fadeEnd)),
               x: lean * naturalCenterX,
@@ -378,7 +402,7 @@
       // current baseWidth so it reads as proportionally the same
       // restlessness at any size.
       (function tickOrganic() {
-        const baseWidth = Math.min(window.innerWidth * 0.18, 520);
+        const baseWidth = Math.min(window.innerWidth * 0.2, 580);
         const t = performance.now() / 1000;
         const ampX = baseWidth * 0.07;
         const ampY = baseWidth * 0.045;

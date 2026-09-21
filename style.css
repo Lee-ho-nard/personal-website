@@ -91,6 +91,10 @@
   --duration-base: 300ms;
   --duration-slow: 600ms;
   --duration-orb: 48s;
+  /* Deliberately not a clean multiple/divisor of --duration-orb, so the
+     hue drift and the blob-morph silhouette (see orb-blob-morph) never
+     fall into a visibly synced cycle together. */
+  --duration-orb-blob: 42s;
   --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   --stagger-step: 75ms;
@@ -192,12 +196,17 @@ a {
   top: -60px;
   right: -5px;
   /* This natural (scale-1) size is mirrored exactly by `baseWidth` in
-     motion.js's tickScrollOrb — the safety-clamp math there measures
-     clearance against this real px size, so if this formula ever changes,
-     that one must change with it or the clamp will be computing against a
-     size the orb doesn't actually render at. */
-  width: min(520px, 18vw);
-  height: min(520px, 18vw);
+     motion.js's build() — the waypoint lean/scale math there is derived
+     against this real px size, so if this formula ever changes, that one
+     must change with it or the waypoints will be reasoning about a size
+     the orb doesn't actually render at. Was min(520px, 18vw); raised
+     ~11% (520→580px, 18→20vw) once content/spacing/typography settled,
+     as a deliberate, modest "the orb should read a little more present"
+     pass — not chasing new text clearance at the larger size (see the
+     waypoint lean fractions token in design.md for the resulting,
+     larger accepted overlap on the pages that already had some). */
+  width: min(580px, 20vw);
+  height: min(580px, 20vw);
   border-radius: 50%;
   background: var(--gradient-iridescent-sphere);
   z-index: 0;
@@ -212,7 +221,19 @@ a {
 
 @media (prefers-reduced-motion: no-preference) {
   .sphere {
-    animation: orb-hue-drift var(--duration-orb) linear infinite;
+    /* Two independent, unrelated-period CSS animations sharing the
+       element — same "layer it on top, don't touch the others" pattern
+       as the JS-driven systems (cursor-follow, GSAP waypoints, organic
+       x/y/scale wobble). orb-blob-morph very subtly deforms the perfect
+       circle into a soft, uneven silhouette and back, a few gentle
+       bumps rather than a static circle, without needing an SVG or
+       clip-path — plain border-radius per-corner values already do
+       this, and backgrounds/gradients follow border-radius natively.
+       Its own duration (42s) is deliberately not a clean multiple of
+       --duration-orb (48s) so the two never fall into a visible synced
+       cycle. */
+    animation: orb-hue-drift var(--duration-orb) linear infinite,
+      orb-blob-morph var(--duration-orb-blob) ease-in-out infinite;
   }
 
   /* Every page: the orb persists in the viewport while scrolling instead
@@ -245,6 +266,22 @@ a {
 @keyframes orb-hue-drift {
   from { filter: hue-rotate(0deg); }
   to { filter: hue-rotate(360deg); }
+}
+
+/* Four distinct, gently uneven silhouettes (each corner's horizontal/
+   vertical radius nudged a few points off the perfect-circle 50%, never
+   more than ~6) cycled through and back to circle — kept this subtle
+   deliberately, so it reads immediately as "the orb" breathing/alive,
+   never as a different shape or a rendering glitch. ease-in-out per leg
+   (not linear, unlike the hue drift) so each bump settles rather than
+   ticking at a constant rate, closer to how the organic x/y/scale
+   wobble in motion.js already feels. */
+@keyframes orb-blob-morph {
+  0%, 100% { border-radius: 50% 50% 50% 50% / 50% 50% 50% 50%; }
+  20% { border-radius: 45% 55% 53% 47% / 55% 48% 52% 45%; }
+  45% { border-radius: 54% 46% 47% 53% / 46% 55% 45% 54%; }
+  70% { border-radius: 48% 52% 55% 45% / 52% 45% 56% 48%; }
+  85% { border-radius: 52% 48% 46% 54% / 49% 53% 47% 51%; }
 }
 
 .ring {
