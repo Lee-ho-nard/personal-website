@@ -12,6 +12,21 @@
     const raw = styles.getPropertyValue(name).trim();
     return /^[\d.]+m?s$/.test(raw) ? raw : fallback;
   };
+  // Mirrors .sphere's own CSS width/height (min(580px, 20vw)) — the one
+  // formula every scroll/filter system below measures the orb's real
+  // size against, so it's centralized here instead of the three
+  // separate inline copies this used to be. `window.innerWidth` reading
+  // as 0 (confirmed live, not hypothetical — see design.md's note on
+  // the liquid-filter Infinity bug this caused) is exactly what the
+  // `|| document.documentElement.clientWidth || 800` fallback chain
+  // guards against; any one of these being transiently 0/undefined at
+  // the moment a script first runs no longer produces a 0 or NaN size
+  // that some downstream division (see the liquid filter) can't
+  // recover from.
+  const baseOrbWidth = () => {
+    const w = window.innerWidth || document.documentElement.clientWidth || 800;
+    return Math.min(w * 0.2, 580);
+  };
 
   // --- Orb cursor-follow (every page — whichever .orb-frame/.sphere exists) ---
   if (canHover && !reducedMotion) {
@@ -149,6 +164,14 @@
       // is what's reliably supported, unlike objectBoundingBox — see the
       // comment above).
       function buildLiquidFilter(id, sizePx, opts) {
+        // Defense in depth, independent of baseOrbWidth's own fallback
+        // chain: whatever sizePx actually arrives as (0, NaN, undefined,
+        // negative — a live, confirmed failure mode, not a hypothetical
+        // one, see baseOrbWidth's comment), every frequency below is a
+        // division by it. A future caller passing this function a
+        // differently-sourced size (the planned bleed reuse) gets the
+        // same guarantee without having to know that history.
+        const safeSizePx = Number.isFinite(sizePx) && sizePx > 0 ? sizePx : 1;
         const o = Object.assign({
           ambientBumps: [1.8, 2.3, 1.5, 2.0, 1.8], // cycles across the element at each SMIL keyframe — a few slow, independent bumps, deliberately not fine grain (numOctaves stays at 1 below for the same reason)
           ambientOctaves: 1,
@@ -164,9 +187,9 @@
         }, opts);
 
         const defs = getFilterHost().querySelector("defs");
-        const ambientFrequency = o.ambientBumps.map((n) => n / sizePx);
-        const pressFrequency = o.pressBumps / sizePx;
-        const displacementScale = o.displacementFraction * sizePx;
+        const ambientFrequency = o.ambientBumps.map((n) => n / safeSizePx);
+        const pressFrequency = o.pressBumps / safeSizePx;
+        const displacementScale = o.displacementFraction * safeSizePx;
 
         // Cursor "press" position/reach, expressed as an ordinary radial
         // gradient (white -> transparent) painted onto a unit rect and
@@ -258,16 +281,12 @@
         return { filter, grad, maskRect };
       }
 
-      // Mirrors .sphere's own CSS width/height (min(580px, 20vw)) — see
-      // the equivalent comment on the GSAP waypoints' own baseWidth
-      // below. Only recomputed on resize, not on scroll: the orb's
-      // scroll-depth growth is a `transform: scale()` applied on top of
-      // this natural size, which scales the already-filtered result
-      // wholesale rather than changing the element's own box, so the
-      // filter never needs to react to it.
-      function orbSize() {
-        return Math.min(window.innerWidth * 0.2, 580);
-      }
+      // Only recomputed on resize, not on scroll: the orb's scroll-depth
+      // growth is a `transform: scale()` applied on top of this natural
+      // size, which scales the already-filtered result wholesale rather
+      // than changing the element's own box, so the filter never needs
+      // to react to it.
+      const orbSize = baseOrbWidth;
 
       const filterId = "orb-goo";
       // numOctaves=1 for the ambient layer regardless of device tier —
@@ -580,11 +599,9 @@
 
         ctx = gsap.context(() => {
           // Mirrors the .sphere CSS rule's own width/height (min(580px,
-          // 20vw), raised from 520px/18vw in a deliberate size-increase
-          // pass) exactly — see the equivalent comment the previous
-          // system carried; if the two formulas ever diverge, this is
-          // reasoning about a size the orb doesn't actually render at.
-          const baseWidth = Math.min(window.innerWidth * 0.2, 580);
+          // 20vw)) exactly — if the two ever diverge, this is reasoning
+          // about a size the orb doesn't actually render at.
+          const baseWidth = baseOrbWidth();
           const frameRect = frame.getBoundingClientRect();
           const naturalCenterX = frameRect.right - restRightTweak - baseWidth / 2;
           const frameHeight = frame.offsetHeight || 1;
@@ -700,7 +717,7 @@
       // current baseWidth so it reads as proportionally the same
       // restlessness at any size.
       (function tickOrganic() {
-        const baseWidth = Math.min(window.innerWidth * 0.2, 580);
+        const baseWidth = baseOrbWidth();
         const t = performance.now() / 1000;
         const ampX = baseWidth * 0.07;
         const ampY = baseWidth * 0.045;
