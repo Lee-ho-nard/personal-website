@@ -191,12 +191,16 @@
         const pressFrequency = o.pressBumps / safeSizePx;
         const displacementScale = o.displacementFraction * safeSizePx;
         // TEMPORARY diagnostic — remove once the live Infinity report is
-        // root-caused; local testing never reproduces it, so this needs
-        // real production values to pin down.
-        console.log("LIQUID_FILTER_DEBUG", JSON.stringify({
-          sizePxIn: sizePx, safeSizePx, ambientFrequency, pressFrequency, displacementScale,
+        // root-caused. A persistent array on window, not console.log:
+        // console messages from very early in a fresh navigation can be
+        // missed by external tooling before its protocol connection
+        // attaches, but reading this array's *current* state after load
+        // has no such window — every call this function ever made is
+        // still sitting right here to inspect.
+        (window.__liquidDebugLog = window.__liquidDebugLog || []).push({
+          t: performance.now(), sizePxIn: sizePx, safeSizePx, ambientFrequency, pressFrequency, displacementScale,
           innerWidth: window.innerWidth, clientWidth: document.documentElement.clientWidth,
-        }));
+        });
 
         // Cursor "press" position/reach, expressed as an ordinary radial
         // gradient (white -> transparent) painted onto a unit rect and
