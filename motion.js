@@ -192,22 +192,32 @@
         const displacementScale = o.displacementFraction * safeSizePx;
 
         // Cursor "press" position/reach, expressed as an ordinary radial
-        // gradient (white -> transparent) painted onto a unit rect and
-        // pulled into the filter via feImage — this is what turns a
-        // second turbulence layer into something that fades in with
-        // distance from a specific point instead of applying uniformly.
-        // r starts at 0 (no visible press) and is animated toward a real
-        // radius by JS only while the cursor is actually near the
-        // element (see the tick loop below); shrinking it back to 0 is
-        // what "fades out ... and eases back to the ambient idle state"
-        // means concretely at the filter-graph level.
-        const grad = svgEl("radialGradient", { id: id + "-grad", cx: "50%", cy: "50%", r: "0%" });
-        grad.appendChild(svgEl("stop", { offset: "0%", "stop-color": "#fff", "stop-opacity": "1" }));
-        grad.appendChild(svgEl("stop", { offset: "60%", "stop-color": "#fff", "stop-opacity": "0.55" }));
-        grad.appendChild(svgEl("stop", { offset: "100%", "stop-color": "#fff", "stop-opacity": "0" }));
-        defs.appendChild(grad);
-        const maskRect = svgEl("rect", { id: id + "-mask-rect", x: "0", y: "0", width: "1", height: "1", fill: "url(#" + id + "-grad)" });
-        defs.appendChild(maskRect);
+        // gradient (white -> transparent) and pulled into the filter via
+        // feImage — this is what turns a second turbulence layer into
+        // something that fades in with distance from a specific point
+        // instead of applying uniformly. r starts at 0 (no visible press)
+        // and is animated toward a real radius by JS only while the
+        // cursor is actually near the element (see the tick loop below).
+        //
+        // The gradient is baked into feImage's href as a self-contained
+        // data: URI SVG string, NOT referenced by fragment id (href="#...")
+        // pointing at a local <radialGradient>/<rect> living in this same
+        // document — confirmed live that a local-element feImage reference
+        // silently rasterizes to nothing in this browser (feImage only
+        // reliably paints an external image resource), which is what made
+        // the whole press layer a permanent no-op regardless of cursor
+        // position. Rebuilding this string on every press-tick is what
+        // "moving" the gradient now means.
+        const pressMaskUri = (cxPct, cyPct, rPct) => {
+          const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1">' +
+            '<defs><radialGradient id="g" cx="' + cxPct + '%" cy="' + cyPct + '%" r="' + rPct + '%">' +
+            '<stop offset="0%" stop-color="#fff" stop-opacity="1"/>' +
+            '<stop offset="60%" stop-color="#fff" stop-opacity="0.55"/>' +
+            '<stop offset="100%" stop-color="#fff" stop-opacity="0"/>' +
+            '</radialGradient></defs>' +
+            '<rect x="0" y="0" width="1" height="1" fill="url(#g)"/></svg>';
+          return "data:image/svg+xml," + encodeURIComponent(svg);
+        };
 
         const filter = svgEl("filter", {
           id,
@@ -234,18 +244,20 @@
         filter.appendChild(ambient);
 
         let noiseSource = "ambientTurb";
+        let feImageEl = null;
 
         if (o.enablePress) {
           // x/y/width/height as percentages (not the same 0/1 unit
-          // square the maskRect itself uses) since percentages on a
+          // square the mask's own viewBox uses) since percentages on a
           // filter primitive's own subregion always resolve against the
           // filter region regardless of primitiveUnits, sidestepping the
           // same reliability question that ruled out objectBoundingBox
           // above.
-          filter.appendChild(svgEl("feImage", {
-            href: "#" + id + "-mask-rect", x: "0%", y: "0%", width: "100%", height: "100%",
+          feImageEl = svgEl("feImage", {
+            href: pressMaskUri(50, 50, 0), x: "0%", y: "0%", width: "100%", height: "100%",
             result: "cursorMask", preserveAspectRatio: "none",
-          }));
+          });
+          filter.appendChild(feImageEl);
           filter.appendChild(svgEl("feTurbulence", {
             type: "turbulence", baseFrequency: String(pressFrequency),
             numOctaves: String(o.pressOctaves), seed: String(o.pressSeed), result: "pressTurbRaw",
@@ -278,7 +290,12 @@
         filter.appendChild(hue);
 
         defs.appendChild(filter);
-        return { filter, grad, maskRect };
+        return {
+          filter,
+          setPress: feImageEl
+            ? (cxPct, cyPct, rPct) => feImageEl.setAttribute("href", pressMaskUri(cxPct.toFixed(1), cyPct.toFixed(1), rPct.toFixed(1)))
+            : () => {},
+        };
       }
 
       // Only recomputed on resize, not on scroll: the orb's scroll-depth
@@ -314,8 +331,6 @@
       // correct a merely-approximate initial guess.
       requestAnimationFrame(() => {
         liquid.filter.remove();
-        liquid.grad.remove();
-        liquid.maskRect.remove();
         liquid = buildLiquidFilter(filterId, orbSize(), liquidOpts());
       });
 
@@ -323,14 +338,12 @@
       window.addEventListener("resize", () => {
         clearTimeout(resizeTimer);
         resizeTimer = setTimeout(() => {
-          // Every id-bearing piece this factory creates (the <filter>
-          // plus its own <radialGradient>/<rect> defs) has to go before
-          // rebuilding with the same id, or the stale ones linger as
-          // orphaned duplicate-id elements and the new filter's own
-          // feImage/url() references become ambiguous.
+          // The <filter> is the only id-bearing piece this factory still
+          // creates (the press mask lives entirely in a feImage href
+          // string now, not as separate defs) — has to go before
+          // rebuilding with the same id, or the stale one lingers as an
+          // orphaned duplicate-id element.
           liquid.filter.remove();
-          liquid.grad.remove();
-          liquid.maskRect.remove();
           liquid = buildLiquidFilter(filterId, orbSize(), liquidOpts());
         }, 200);
       });
@@ -388,9 +401,7 @@
             currentPX += (targetPX - currentPX) * PRESS_LERP;
             currentPY += (targetPY - currentPY) * PRESS_LERP;
             currentIntensity += (targetIntensity - currentIntensity) * PRESS_LERP;
-            liquid.grad.setAttribute("cx", (currentPX * 100).toFixed(1) + "%");
-            liquid.grad.setAttribute("cy", (currentPY * 100).toFixed(1) + "%");
-            liquid.grad.setAttribute("r", (currentIntensity * PRESS_RADIUS).toFixed(1) + "%");
+            liquid.setPress(currentPX * 100, currentPY * 100, currentIntensity * PRESS_RADIUS);
           }
           requestAnimationFrame(tickPress);
         })();
