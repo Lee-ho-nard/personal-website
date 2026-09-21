@@ -32,8 +32,8 @@ OFF+BRAND. operates as a typographic architecture on warm parchment: a near-mono
 |------|------|-------------|----------------|-------|
 | caption | 11px | 1.4 | 0.55px | `--text-caption` |
 | body-sm | 15px | 1.4 | 0.15px | `--text-body-sm` |
-| body | 18px | 1.4 | 0.23px | `--text-body` |
-| subheading | 34px | 1 | 0.44px | `--text-subheading` |
+| body | 20px | 1.4 | 0.23px | `--text-body` |
+| section heading | fluid, `clamp(2.75rem, 8vw, 103px)` | 0.9 | 0.44px | *(inline in style.css — `section h2`, `.project-card h2`)* — a section's own heading ("NOW", "FLIT", "INTRO", ...), fluid via the same `clamp()` mechanism as the hero h1, scaling up to `--text-display` (103px) rather than a fixed size, so it reads as a real headline at typical desktop widths. `--text-subheading` (34px) is kept only as unused legacy min/mid reference, not applied standalone anywhere now |
 | heading-sm | 46px | 1 | 0.6px | `--text-heading-sm` |
 | heading | 70px | 0.8 | 0.91px | `--text-heading` |
 | heading-lg | 76px | 0.8 | 0.99px | `--text-heading-lg` |
@@ -75,7 +75,7 @@ OFF+BRAND. operates as a typographic architecture on warm parchment: a near-mono
 - **Section gap:** 76-119px
 - **Card padding:** 30px
 - **Element gap:** 19px
-- **Zigzag gap:** 700px (`--zigzag-gap`) — the gap before every `.zigzag` section after the first. Well above the normal 76–119px section-gap range. Originally re-derived (not nudged) against a since-replaced live safety solver's own always-comfortable-margin minimum, which came out viewport-relative and, at typical desktop widths, no smaller than the old 740px — About (most zigzag sections) was the binding page; 700px was a deliberate tightening past that point, traded for visibly tighter pacing everywhere. The orb's motion is now a hand-authored GSAP waypoint timeline rather than that live solver (see Scroll-Linked Orb), but the value carries over unchanged, since it's still what gives the waypoints real scroll distance to glide between rather than being rushed.
+- **Zigzag gap:** 380px (`--zigzag-gap`) — the gap before every `.zigzag` section after the first. Was 700px (itself re-derived against a since-replaced live safety solver's own margin, before that solver was replaced by the current hand-authored GSAP waypoint timeline — see Scroll-Linked Orb); tightened further to 380px specifically to close the dead scroll space between sections once real content density became the goal, re-verified via the same `getBoundingClientRect` overlap sweep at 700/1024/1700px used to place the waypoints. Tightening it further didn't meaningfully help the one real remaining squeeze (Work's and Life's second, last waypoint — see the waypoint lean token below) since that's driven by the depth-growth curve saturating on a short 2-section page regardless of gap, not by the gap itself.
 - **Page edge right:** `--page-edge-right`, `calc(max(0px, (100vw - 1400px) / 2) + 30px)` — distance from the viewport's right edge to `.page`'s own right content edge at any width, used to keep the fixed-position orb aligned without duplicating this math in JS
 
 ## Tokens — Motion
@@ -115,7 +115,7 @@ Motion is restrained the same way color is: a small, fixed vocabulary reused eve
 | rest drift Y | -40px | *(inline in motion.js, `REST_DRIFT_Y`)* | How far the orb drifts up into its resting slot over the header's own height, then holds for the rest of the page — unchanged in value and shape from the previous system |
 | base growth plateau | 1.65 | *(inline in motion.js, `BASE_GROWTH_PLATEAU`)* | The orb's depth-based size once fully grown — starts at 1 at scroll 0 and grows smoothly and monotonically from there (no recede dip; see Scroll-Linked Orb) to this noticeably larger resting size, folded directly into each waypoint's own scale rather than computed live every frame |
 | growth level fraction | 0.6 | *(inline in motion.js, `GROWTH_LEVEL_FRACTION`)* | How far into a page's real content (as a fraction of the distance from the header's end to the last content) the depth-growth above finishes — short of 1 so it's flat well before the footer, on every page regardless of length |
-| waypoint lean fractions | see WAYPOINT_PLANS | *(inline in motion.js)* | Each hand-placed waypoint's horizontal lean, as a fraction of `naturalCenterX` (the orb's own natural resting distance from the viewport's left edge) rather than a fixed px amount — a `.zigzag:nth-of-type(even)` element (the orb's own resting corner) gets a real, decisive lean (~0.7–0.9, more on a page with fewer/shorter sections, since depth-growth reaches its plateau sooner there in absolute scroll terms); a normal-flow element gets a small, mostly stylistic drift (~0.04–0.18). Chosen by hand and verified against real measured text/orb overlap at 700/1024/1700px, not solved live |
+| waypoint lean fractions | see WAYPOINT_PLANS | *(inline in motion.js)* | Each hand-placed waypoint's horizontal lean, as a fraction of `naturalCenterX` (the orb's own natural resting distance from the viewport's left edge) rather than a fixed px amount. Re-derived (not nudged) after section headings grew from a fixed 34px to a fluid clamp up to 103px: at that size, real text edges sit close enough to the orb's own resting position that several normal-flow elements actually needed a small *rightward* lean (~0.05–0.15) to clear, not a smaller leftward one as before — a `.zigzag:nth-of-type(even)` element (the orb's own resting corner) still needs a real, decisive *leftward* lean (~0.65–0.98, clamped there — see the solver's own comment in motion.js). On Work and Life specifically, the second (and only other) waypoint can't fully clear even at that ceiling, since depth-growth is already at its plateau by then on a short 2-section page regardless of `--zigzag-gap` — an accepted residual overlap on the same terms as Home's Contact always was, covered by the z-index fallback, not the lean |
 | waypoint jitter | ±0.05 lean / ±0.04 scale / ±1.5% timing | *(inline in motion.js, `jitter`)* | One-time per-load randomization (`gsap.utils.random()`) applied to every waypoint before the timeline is built, so the overall path shape is consistent but no two loads trace pixel-identical motion — rolled once per page load, not re-rolled on a resize-triggered rebuild |
 | organic drift amplitude | 0.07× / 0.045× baseWidth | *(inline in motion.js, `organicAmpX`/`organicAmpY`)* | Peak x/y offset of the scroll-linked orb's continuous, time-driven idle wobble (see Scroll-Linked Orb) — proportional to the orb's own current size, not a flat px amount |
 | organic drift periods | ~35–140s | *(inline in motion.js, `tickOrganic`)* | Periods of the four sine terms (two per axis) summed to produce the wobble — slow and mutually unrelated so the combined path doesn't read as a simple back-and-forth |
@@ -230,7 +230,7 @@ Pill-shaped ghost button: Ink border 1px, 10px radius, padding 8px 19px. Ataero 
 - Do not use colored fills on buttons, cards, or backgrounds — all interactive surfaces stay ghost or white
 - Do not add drop shadows, box-shadows, or elevation effects — the system is flat by design philosophy
 - Do not use the gradient outside the hero sphere context — it is a single signature moment, not a recurring accent
-- Do not set body text below 15px or above 18px — the 15/18 pair is the readable range in this system
+- Do not set body text below 15px or above 20px — the 15/20 pair is the readable range in this system (raised from 15/18 when body copy was deliberately made to read as more confident copy rather than a caption)
 - Do not center-align body paragraphs — body copy reads left-aligned, always
 - Do not round card or image containers — cards are sharp-cornered (0px); only interactive elements get 10px radius
 - Do not let the hero sphere's ambient motion read as a spin or attention-grabbing effect — it stays barely perceptible
@@ -318,11 +318,11 @@ Ataero Retina OB Edition is a custom font — not available on Google Fonts or A
   --text-body-sm: 15px;
   --leading-body-sm: 1.4;
   --tracking-body-sm: 0.15px;
-  --text-body: 18px;
+  --text-body: 20px;
   --leading-body: 1.4;
   --tracking-body: 0.23px;
   --text-subheading: 34px;
-  --leading-subheading: 1;
+  --leading-subheading: 0.9;
   --tracking-subheading: 0.44px;
   --text-heading-sm: 46px;
   --leading-heading-sm: 1;
@@ -359,7 +359,7 @@ Ataero Retina OB Edition is a custom font — not available on Google Fonts or A
   --section-gap: 76-119px;
   --card-padding: 30px;
   --element-gap: 19px;
-  --zigzag-gap: 700px;
+  --zigzag-gap: 380px;
   --page-edge-right: calc(max(0px, (100vw - 1400px) / 2) + 30px);
 
   /* Border Radius */
@@ -421,11 +421,11 @@ Ataero Retina OB Edition is a custom font — not available on Google Fonts or A
   --text-body-sm: 15px;
   --leading-body-sm: 1.4;
   --tracking-body-sm: 0.15px;
-  --text-body: 18px;
+  --text-body: 20px;
   --leading-body: 1.4;
   --tracking-body: 0.23px;
   --text-subheading: 34px;
-  --leading-subheading: 1;
+  --leading-subheading: 0.9;
   --tracking-subheading: 0.44px;
   --text-heading-sm: 46px;
   --leading-heading-sm: 1;

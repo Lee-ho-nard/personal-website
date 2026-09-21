@@ -217,11 +217,23 @@
       // so even the "understated" waypoints there needed to shrink
       // further, and the "decisive" ones needed to push further left, to
       // hold the same real clearance this plan targets everywhere.
+      // Re-derived analytically (not by trial against the live, jittered
+      // timeline) after the section-heading size increase: a heading
+      // this large pushes real text edges close enough to the orb's own
+      // natural rest position that several "understated" left-aligned
+      // waypoints actually needed a small *rightward* lean to clear,
+      // not just a smaller leftward one — the opposite direction from
+      // before. Work and Life's second waypoint (the only zigzag element
+      // on an otherwise-short page, so depth-growth is already at its
+      // plateau by the time it's reached) can't fully clear at 1024px
+      // even at this solver's -0.98 ceiling — a real, accepted residual
+      // overlap there, on the same terms as Home's Contact always was:
+      // covered by the z-index fallback, not a live guarantee.
       const WAYPOINT_PLANS = {
-        home: [-0.08, -0.90, -0.04, -0.88, -0.06],
-        work: [-0.10, -0.90],
-        about: [-0.08, -0.72, -0.10, -0.75],
-        life: [-0.08, -0.90],
+        home: [0.10, -0.90, 0.10, -0.90, 0.15],
+        work: [0.12, -0.98],
+        about: [0.05, -0.65, 0.05, -0.65],
+        life: [0.11, -0.98],
       };
       const page = document.body.dataset.orbPage;
       const leans = (page && WAYPOINT_PLANS[page])
@@ -299,7 +311,7 @@
             // to a sane range so no combination of hand-authored value +
             // random perturbation can send the orb's center past the
             // viewport's own left edge.
-            const lean = Math.max(-0.95, Math.min(0.1, (leans[i] ?? -0.2) + jitter[i].lean));
+            const lean = Math.max(-0.98, Math.min(0.2, (leans[i] ?? -0.2) + jitter[i].lean));
             return {
               y: Math.max(1, Math.min(fadeEnd - 1, targetScrollY + jitter[i].t * fadeEnd)),
               x: lean * naturalCenterX,

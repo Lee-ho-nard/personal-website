@@ -18,12 +18,18 @@
   --leading-body-sm: 1.4;
   --tracking-body-sm: 0.15px;
 
-  --text-body: 18px;
+  --text-body: 20px;
   --leading-body: 1.4;
   --tracking-body: 0.23px;
 
+  /* Section headings ("NOW", "FLIT", ...) — fluid via clamp(), same
+     mechanism as the hero h1 below, capped at --text-display (103px)
+     rather than --text-subheading's old fixed 34px, so a section reads
+     as a real headline instead of a large label. --text-subheading is
+     kept only as the min/mid anchor for that clamp, not used standalone
+     anywhere anymore. */
   --text-subheading: 34px;
-  --leading-subheading: 1;
+  --leading-subheading: 0.9;
   --tracking-subheading: 0.44px;
 
   --text-heading-sm: 46px;
@@ -59,30 +65,19 @@
      to keep the fixed-position orb aligned with hero-relative content
      across breakpoints without duplicating this math in JS. */
   --page-edge-right: calc(max(0px, (100vw - var(--page-max-width)) / 2) + var(--spacing-30));
-  /* Vertical gap before every zigzag section after the first. Re-derived
-     empirically (not nudged) after motion.js's BAND_TRANSITION fade was
-     added: a fully rigorous, always-comfortable-margin minimum came out
-     viewport-relative and, at typical desktop widths, closer to the old
-     740px than smaller — About (the page with the most zigzag sections,
-     whose later transitions land at a higher growthProgress, closer to
-     the depth-growth plateau, than Home's ever do) is the binding case.
-     Tightening below that reopens a real, non-rounding-noise safety-
-     margin shortfall on About specifically, right around its later
-     transitions — a deliberate tradeoff, not an oversight: accepted in
-     favor of visibly tighter section pacing everywhere, since the
-     existing infeasible-fallback in motion.js's safety solver still
-     guarantees real text clearance whenever this happens, at the cost of
-     the orb occasionally pinning to a fixed point for a short scroll
-     span instead of gliding smoothly through it.
-     Verified via a full getBoundingClientRect-based safety-margin sweep
-     (every 5px of scroll, both bound directions) on every zigzag
-     transition on every page at 700/1024/1700px: at 700px, comfortably
-     safe on Home and About (About's one shortfall there is a separate,
-     pre-existing, gap-independent narrow-viewport squeeze near the top
-     of the page, present at this width regardless of this value); at
-     1024px, a brief ~30px-of-scroll shortfall on About (~-15px worst
-     margin); at 1700px, zero shortfall on About. */
-  --zigzag-gap: 700px;
+  /* Vertical gap before every zigzag section after the first. Was 700px,
+     sized against a since-replaced live safety solver's own floor (see
+     motion.js's Scroll-Linked Orb docs in design.md) — now that the
+     orb's position is a set of hand-placed GSAP waypoints rather than a
+     value that solver had to find room for, this is free to be a purely
+     visual-density decision instead. Tightened to close the dead scroll
+     space between sections; re-verified (not assumed) via the same
+     getBoundingClientRect overlap sweep at 700/1024/1700px used to
+     originally place the waypoints, on every page, after this change
+     and the larger section headings/added copy that shipped alongside
+     it — see design.md's Scroll-Linked Orb section for the resulting
+     numbers. */
+  --zigzag-gap: 380px;
 
   /* Motion */
   --duration-fast: 150ms;
@@ -502,17 +497,22 @@ section .section-label {
   letter-spacing: var(--tracking-caption);
   text-transform: uppercase;
   color: var(--color-ink);
-  margin-bottom: var(--spacing-19);
+  margin-bottom: var(--spacing-8);
 }
 
+/* Fluid, same clamp() mechanism as the hero h1 (see .hero header h1) —
+   scales from a readable minimum up to --text-display (103px) via
+   viewport width, so a section heading like "NOW" or "FLIT" reads as a
+   real headline at typical desktop widths instead of the old fixed
+   34px label-sized heading. */
 section h2 {
   font-family: var(--font-display);
   font-weight: 400;
   text-transform: uppercase;
-  font-size: var(--text-subheading);
+  font-size: clamp(2.75rem, 8vw, var(--text-display));
   line-height: var(--leading-subheading);
   letter-spacing: var(--tracking-subheading);
-  margin-bottom: var(--spacing-19);
+  margin-bottom: var(--spacing-15);
 }
 
 section p {
@@ -576,14 +576,24 @@ section p:last-of-type {
 
 /* Right-aligned About blocks ("How I Got Here", "Closing") sit in the
    orb's own resting corner (see Zigzag Section Alternation), so their
-   paragraph width directly sets how far the scroll-linked orb has to
-   swing to clear them (see motion.js's targetFor). At the default 60ch,
-   these two were wide enough to reach nearly to the page's left edge,
-   forcing an ~750px swing at common viewport widths — narrower here
-   keeps that swing comparable to the other zigzag transitions on the
-   page, not a uniquely oversized one. */
+   real text width directly sets how far the scroll-linked orb's
+   hand-placed waypoint has to lean to clear them (see motion.js). At the
+   default 60ch, these two paragraphs were wide enough to reach nearly to
+   the page's left edge, forcing an oversized lean; narrower here keeps
+   it comparable to the other zigzag transitions on the page. The
+   heading gets the same treatment for the same reason — at the section
+   heading's own much larger size, "How I Got Here" and "Closing" would
+   otherwise sprawl wider than the narrowed paragraph beneath them,
+   undoing the point of narrowing it; capping it the same way just wraps
+   a multi-word title onto a second line instead, consistent with the
+   site's existing "stack into a block" multi-line headline treatment
+   (see the hero h1). */
 .about-block--narrow p {
   max-width: 28ch;
+}
+
+.about-block--narrow h2 {
+  max-width: 8ch;
 }
 
 /* --- Project cards (Work page) --- */
@@ -597,17 +607,21 @@ section p:last-of-type {
   letter-spacing: var(--tracking-caption);
   text-transform: uppercase;
   color: var(--color-ink);
-  margin-bottom: var(--spacing-15);
+  margin-bottom: var(--spacing-8);
 }
 
+/* Same fluid clamp as the generic section h2 rule (kept as its own rule
+   since .project-card's class specificity would otherwise need
+   !important to inherit it) — unifies Work's heading scale with
+   Home's, which previously used a smaller fixed --text-heading-sm. */
 .project-card h2 {
   font-family: var(--font-display);
   font-weight: 400;
   text-transform: uppercase;
-  font-size: var(--text-heading-sm);
-  line-height: var(--leading-heading-sm);
-  letter-spacing: var(--tracking-heading-sm);
-  margin-bottom: var(--spacing-19);
+  font-size: clamp(2.75rem, 8vw, var(--text-display));
+  line-height: var(--leading-subheading);
+  letter-spacing: var(--tracking-subheading);
+  margin-bottom: var(--spacing-15);
 }
 
 .project-card p {
