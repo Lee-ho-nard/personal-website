@@ -104,8 +104,6 @@
   --stagger-step: 75ms;
 
   /* Motion — Cursor Interaction */
-  --orb-follow-distance: 14px;
-  --orb-follow-lerp: 0.08;
   --magnetic-radius: 70px;
   --magnetic-strength: 0.3;
 }
@@ -214,7 +212,6 @@ a {
   border-radius: 50%;
   background: var(--gradient-iridescent-sphere);
   z-index: 0;
-  transform: translate(var(--orb-x, 0px), var(--orb-y, 0px));
   /* Shared across every page so cross-document navigation treats it as
      one persistent element and travels it along its own path instead of
      cross-fading it as part of the root snapshot. Its width/height are
@@ -261,7 +258,7 @@ a {
        wobble layered on top via its own requestAnimationFrame tick, so it
        keeps running regardless of what the scroll timeline is doing (see
        motion.js) rather than being computed inside the same tween. */
-    transform: translate(var(--orb-x, 0px), var(--orb-y, 0px)) translate(var(--scroll-x, 0px), var(--scroll-y, 0px)) translate(var(--organic-x, 0px), var(--organic-y, 0px)) scale(var(--scroll-scale, 1)) scale(var(--organic-scale, 1));
+    transform: translate(var(--scroll-x, 0px), var(--scroll-y, 0px)) translate(var(--organic-x, 0px), var(--organic-y, 0px)) scale(var(--scroll-scale, 1)) scale(var(--organic-scale, 1));
     opacity: var(--scroll-opacity, 1);
     transition: opacity var(--duration-base) var(--ease-standard);
   }

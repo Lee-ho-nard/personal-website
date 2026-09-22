@@ -1,7 +1,7 @@
-// Cursor-reactive + scroll-linked motion: orb follow, magnetic buttons/nav
-// links, and the Home-only scroll-linked orb. Each effect is gated
-// independently — scroll-linking only needs reduced-motion off; cursor
-// effects also need a real pointer.
+// Cursor-reactive + scroll-linked motion: the orb's liquid press effect,
+// magnetic buttons/nav links, and the Home-only scroll-linked orb. Each
+// effect is gated independently — scroll-linking only needs reduced-motion
+// off; cursor effects also need a real pointer.
 (function () {
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const canHover = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
@@ -27,60 +27,6 @@
     const w = window.innerWidth || document.documentElement.clientWidth || 800;
     return Math.min(w * 0.2, 580);
   };
-
-  // --- Orb cursor-follow (every page — whichever .orb-frame/.sphere exists) ---
-  if (canHover && !reducedMotion) {
-    const frame = document.querySelector(".orb-frame");
-    const sphere = frame ? frame.querySelector(".sphere") : null;
-
-    if (frame && sphere) {
-      const followDistance = px("--orb-follow-distance", 14);
-      const followLerp = px("--orb-follow-lerp", 0.08);
-
-      let targetX = 0;
-      let targetY = 0;
-      let currentX = 0;
-      let currentY = 0;
-
-      // Listens on window, not .orb-frame: .orb-frame is a normal block at
-      // the top of the document, so once the page scrolls its box (and
-      // therefore its pointermove hit area) scrolls away too, even though
-      // .sphere itself stays fixed in the viewport. Using the sphere's own
-      // live rect as the reference point keeps this working at any scroll
-      // position, gated to a radius around the orb so distant cursor
-      // positions elsewhere on a tall page don't pull it around.
-      window.addEventListener("pointermove", (e) => {
-        const rect = sphere.getBoundingClientRect();
-        const cx = rect.left + rect.width / 2;
-        const cy = rect.top + rect.height / 2;
-        const dx = e.clientX - cx;
-        const dy = e.clientY - cy;
-        const dist = Math.hypot(dx, dy);
-        const radius = Math.max(rect.width, rect.height) * 1.5;
-        if (dist < 1 || dist > radius) {
-          targetX = 0;
-          targetY = 0;
-          return;
-        }
-        const pull = 1 - dist / radius;
-        targetX = (dx / dist) * followDistance * pull;
-        targetY = (dy / dist) * followDistance * pull;
-      }, { passive: true });
-
-      window.addEventListener("pointerleave", () => {
-        targetX = 0;
-        targetY = 0;
-      });
-
-      (function tickOrb() {
-        currentX += (targetX - currentX) * followLerp;
-        currentY += (targetY - currentY) * followLerp;
-        sphere.style.setProperty("--orb-x", currentX.toFixed(2) + "px");
-        sphere.style.setProperty("--orb-y", currentY.toFixed(2) + "px");
-        requestAnimationFrame(tickOrb);
-      })();
-    }
-  }
 
   // --- Liquid/goo SVG filter (every page, replaces the old CSS
   // border-radius wobble) ---
@@ -353,11 +299,11 @@
         }, 200);
       });
 
-      // Cursor "press": gated the same way as the cursor-follow orb
-      // above (fine pointer + hover-capable only) — reuses the sphere's
-      // own live rect the same way, for the same reason (its fixed
-      // viewport position diverges from any ancestor's document
-      // position once the page scrolls).
+      // Cursor "press": gated the same way as every other cursor effect
+      // on the site (fine pointer + hover-capable only) — reads the
+      // sphere's own live rect rather than the page-top .orb-frame box,
+      // since its fixed viewport position diverges from any ancestor's
+      // document position once the page scrolls.
       if (canHover) {
         let targetPX = 0.5;
         let targetPY = 0.5;
@@ -375,10 +321,9 @@
           const dx = fx - 0.5;
           const dy = fy - 0.5;
           const dist = Math.hypot(dx, dy);
-          // A little past the visible edge, same spirit as the
-          // cursor-follow orb's own 1.5x-diameter catch radius — reads
-          // as "pressing into" the orb starting just before the cursor
-          // visually reaches it, not only once it's exactly inside.
+          // A little past the visible edge — reads as "pressing into"
+          // the orb starting just before the cursor visually reaches it,
+          // not only once it's exactly inside.
           if (dist > 0.9) {
             targetIntensity = 0;
             return;
