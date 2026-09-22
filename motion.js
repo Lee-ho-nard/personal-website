@@ -173,14 +173,21 @@
         // same guarantee without having to know that history.
         const safeSizePx = Number.isFinite(sizePx) && sizePx > 0 ? sizePx : 1;
         const o = Object.assign({
-          ambientBumps: [1.8, 2.3, 1.5, 2.0, 1.8], // cycles across the element at each SMIL keyframe — a few slow, independent bumps, deliberately not fine grain (numOctaves stays at 1 below for the same reason)
+          // cycles across the element at each SMIL keyframe — kept under
+          // 1.5 (was 1.5-2.3) so each cycle reads as one broad, rolling
+          // lobe rather than the many small close-together "needle" bumps
+          // a higher cycle count produces once actually displaced (a
+          // real, confirmed look, not hypothetical — cranking baseFrequency
+          // down is what turns that into a lava-lamp-style few-big-bumps
+          // silhouette). numOctaves stays at 1 for the same reason.
+          ambientBumps: [0.9, 1.25, 0.75, 1.1, 0.9],
           ambientOctaves: 1,
           ambientSeed: 5,
           ambientDuration: durStr("--duration-orb-blob", "46s"),
           hueDuration: durStr("--duration-orb", "48s"),
           displacementFraction: 0.09, // final feDisplacementMap scale = this * sizePx
-          pressBumps: 6,
-          pressOctaves: 2,
+          pressBumps: 3, // same broad-lobe intent as ambientBumps, just a little tighter since it's meant to read as one localized push, not the whole silhouette
+          pressOctaves: 1, // was 2 — the extra octave added fine texture that fought the same broad-bump goal as ambientBumps
           pressSeed: 11,
           pressBoost: 2.2, // feComponentTransfer slope — makes the press bump read as a distinct, firmer push, not just "more of the same ambient noise"
           enablePress: true,
@@ -306,14 +313,12 @@
       const orbSize = baseOrbWidth;
 
       const filterId = "orb-goo";
-      // numOctaves=1 for the ambient layer regardless of device tier —
-      // it's what keeps the silhouette to a few smooth bumps instead of
-      // fine grain (see ambientBumps' own comment); the press layer's
-      // extra octave (skipped on a likely low-end device) is what's
-      // actually tied to hardwareConcurrency here.
+      // numOctaves=1 on both layers regardless of device tier now (see
+      // buildLiquidFilter's own defaults) — hardwareConcurrency no longer
+      // has a texture lever to pull, only the press tick's own update
+      // rate below.
       const liquidOpts = () => ({
         enablePress: canHover,
-        pressOctaves: isLikelyLowEnd ? 1 : 2,
       });
       let liquid = buildLiquidFilter(filterId, orbSize(), liquidOpts());
       sphere.style.filter = "url(#" + filterId + ")";
