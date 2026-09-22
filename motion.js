@@ -135,7 +135,6 @@
           pressBumps: 3, // same broad-lobe intent as ambientBumps, just a little tighter since it's meant to read as one localized push, not the whole silhouette
           pressOctaves: 1, // was 2 — the extra octave added fine texture that fought the same broad-bump goal as ambientBumps
           pressSeed: 11,
-          pressBoost: 2.2, // feComponentTransfer slope — makes the press bump read as a distinct, firmer push, not just "more of the same ambient noise"
           enablePress: true,
         }, opts);
 
@@ -215,15 +214,40 @@
             type: "turbulence", baseFrequency: String(pressFrequency),
             numOctaves: String(o.pressOctaves), seed: String(o.pressSeed), result: "pressTurbRaw",
           }));
+          // Two bugs lived here together, both traced to the same root
+          // cause: feDisplacementMap's neutral (no-displacement) value is
+          // 0.5, not 0, but masking pressBoosted's R/G by cursorMask's
+          // alpha via a plain feComposite "in" multiplies every channel
+          // value TOWARD 0 as the mask fades out — which, anywhere the
+          // boosted noise sat above 0.5, drags it back down *past* 0.5 on
+          // its way to 0, flipping the local displacement's sign in a
+          // ring partway through the falloff. That's what produced two
+          // outward "hills" flanking the intended inward dent instead of
+          // one clean press, confirmed live. Fixed two ways at once:
+          // feFuncR/feFuncG now use a `type="table"` remap that floors at
+          // exactly 0.5 (never crosses it, unlike the old symmetric
+          // linear boost) instead of spanning both sides; and the old
+          // arithmetic *add* of pressMasked onto ambientTurb is replaced
+          // with a proper alpha-weighted `over` composite, a true convex
+          // blend between the two that can never overshoot past either
+          // one — so no value in the falloff ring can land outside the
+          // [ambientTurb, pressBoosted] range, closing off the ring
+          // artifact geometrically rather than just shrinking it.
+          // feFuncA on both inputs forces a flat alpha of 1 first, since
+          // feTurbulence's own alpha channel is independently noisy by
+          // default and would otherwise silently skew the blend weights
+          // away from cursorMask's actual falloff.
           const boost = svgEl("feComponentTransfer", { in: "pressTurbRaw", result: "pressBoosted" });
-          ["feFuncR", "feFuncG"].forEach((fn) => {
-            boost.appendChild(svgEl(fn, { type: "linear", slope: String(o.pressBoost), intercept: String(-(o.pressBoost - 1) / 2) }));
-          });
+          boost.appendChild(svgEl("feFuncR", { type: "table", tableValues: "0.5 0.5 1" }));
+          boost.appendChild(svgEl("feFuncG", { type: "table", tableValues: "0.5 0.5 1" }));
+          boost.appendChild(svgEl("feFuncA", { type: "discrete", tableValues: "1" }));
           filter.appendChild(boost);
+          const ambientOpaque = svgEl("feComponentTransfer", { in: "ambientTurb", result: "ambientOpaque" });
+          ambientOpaque.appendChild(svgEl("feFuncA", { type: "discrete", tableValues: "1" }));
+          filter.appendChild(ambientOpaque);
           filter.appendChild(svgEl("feComposite", { in: "pressBoosted", in2: "cursorMask", operator: "in", result: "pressMasked" }));
           filter.appendChild(svgEl("feComposite", {
-            in: "ambientTurb", in2: "pressMasked", operator: "arithmetic",
-            k1: "0", k2: "1", k3: "1", k4: "0", result: "combinedNoise",
+            in: "pressMasked", in2: "ambientOpaque", operator: "over", result: "combinedNoise",
           }));
           noiseSource = "combinedNoise";
         }
