@@ -220,6 +220,46 @@ a {
   view-transition-name: hero-orb;
 }
 
+/* Soft ambient halo behind the orb — a separate blurred element, not a
+   filter chained onto .sphere itself, since .sphere already carries the
+   (comparatively expensive) SVG liquid filter and stacking another
+   filter operation onto the same element would compound that cost on
+   every repaint; this stays independent and cheap (a single CSS
+   blur()). Mirrors .sphere's own base position/size exactly (see the
+   per-context overrides below) so a plain blur bleeds symmetrically
+   around the same center, no separate size math needed. */
+.orb-glow {
+  position: absolute;
+  top: -60px;
+  right: -5px;
+  width: min(580px, 20vw);
+  height: min(580px, 20vw);
+  border-radius: 50%;
+  background: var(--gradient-iridescent-sphere);
+  filter: blur(40px);
+  opacity: 0.3;
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* Sparse ambient particle layer — a <canvas>, not SVG, kept cheap (a
+   couple of small radial-gradient circles redrawn per frame costs far
+   less than another feTurbulence/feDisplacementMap graph). Sized larger
+   than .sphere's own box (unlike .orb-glow above, which just matches it)
+   because canvas content is hard-clipped to its own box with no blur to
+   bleed past it — motion.js spawns particles right around .sphere's own
+   edge and lets them drift outward, so they need real room past that
+   edge to fade out in rather than being clipped mid-drift. */
+.orb-particles {
+  position: absolute;
+  top: calc(-60px - min(580px, 20vw) * 0.25);
+  right: calc(-5px - min(580px, 20vw) * 0.25);
+  width: calc(min(580px, 20vw) * 1.5);
+  height: calc(min(580px, 20vw) * 1.5);
+  pointer-events: none;
+  z-index: 0;
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .sphere {
     /* Static reference, not a CSS animation — the motion (ambient
@@ -261,6 +301,35 @@ a {
     transform: translate(var(--scroll-x, 0px), var(--scroll-y, 0px)) translate(var(--organic-x, 0px), var(--organic-y, 0px)) scale(var(--scroll-scale, 1)) scale(var(--organic-scale, 1));
     opacity: var(--scroll-opacity, 1);
     transition: opacity var(--duration-base) var(--ease-standard);
+  }
+
+  /* .orb-glow/.orb-particles don't join the GSAP/organic-wobble transform
+     chain above directly — motion.js instead copies .sphere's own live
+     computed transform onto both every tick, whatever that chain
+     currently adds up to, so this stays genuinely independent of how the
+     scroll-waypoint and organic-wobble systems work internally. Only the
+     base (untransformed) fixed position needs setting here, same as
+     .sphere's own rule just above. */
+  .orb-frame .orb-glow {
+    position: fixed;
+    top: var(--orb-rest-top);
+    right: var(--orb-rest-right);
+    animation: orb-glow-hue var(--duration-orb) linear infinite;
+  }
+
+  .orb-frame .orb-particles {
+    position: fixed;
+    top: calc(var(--orb-rest-top) - min(580px, 20vw) * 0.25);
+    right: calc(var(--orb-rest-right) - min(580px, 20vw) * 0.25);
+  }
+
+  /* Mirrors the orb's own SMIL hue-rotate (see motion.js's liquid-filter
+     section) as a plain CSS loop of the same duration, rather than
+     reading or re-triggering that SMIL animation directly — close enough
+     to read as "the same light," genuinely independent to build. */
+  @keyframes orb-glow-hue {
+    from { filter: blur(40px) hue-rotate(0deg); }
+    to   { filter: blur(40px) hue-rotate(360deg); }
   }
 }
 
@@ -444,9 +513,15 @@ nav a.active::after {
 /* The orb here is the exact same element/size as the Home hero's — only
    its position differs, sitting flush inside the page column (no negative
    offset, so nothing bleeds past the header's own box and needs cropping). */
-.page-header .sphere {
+.page-header .sphere,
+.page-header .orb-glow {
   top: 0;
   right: 0;
+}
+
+.page-header .orb-particles {
+  top: calc(0px - min(580px, 20vw) * 0.25);
+  right: calc(0px - min(580px, 20vw) * 0.25);
 }
 
 /* --- Sections --- */

@@ -383,6 +383,125 @@
     }
   }
 
+  // --- Ambient glow + sparse particles (every page, purely decorative —
+  // genuinely independent of the five systems above: reads .sphere's own
+  // live computed transform to track its position/scroll-depth growth
+  // rather than sharing or re-deriving any of their internal state, and
+  // never touches the SVG filter/displacement graph at all). ---
+  {
+    const frame = document.querySelector(".orb-frame");
+    const sphere = frame ? frame.querySelector(".sphere") : null;
+
+    if (frame && sphere) {
+      const glow = document.createElement("div");
+      glow.className = "orb-glow";
+      glow.setAttribute("aria-hidden", "true");
+      frame.insertBefore(glow, sphere);
+
+      if (!reducedMotion) {
+        // Same coarse, conservative low-end signal as the liquid filter's
+        // own (re-declared locally rather than shared, so this block
+        // stays a self-contained, independent addition).
+        const isLikelyLowEnd = typeof navigator.hardwareConcurrency === "number" && navigator.hardwareConcurrency > 0 && navigator.hardwareConcurrency <= 4;
+
+        const canvas = document.createElement("canvas");
+        canvas.className = "orb-particles";
+        canvas.setAttribute("aria-hidden", "true");
+        frame.insertBefore(canvas, sphere);
+        const ctx = canvas.getContext("2d");
+        // Internal resolution only — CSS gives the element its real
+        // on-screen size, same "draw once, let the transform scale it"
+        // approach the orb's own liquid filter already relies on, so
+        // growth doesn't need its own redraw logic.
+        const CANVAS_SIZE = 300;
+        canvas.width = CANVAS_SIZE;
+        canvas.height = CANVAS_SIZE;
+
+        // Copies .sphere's own live computed transform onto both new
+        // elements every tick, whatever combination of scroll-depth
+        // growth, organic wobble, and lean it currently adds up to —
+        // deliberately not reading any of those systems' own state
+        // directly, so this stays correct even if their internals change
+        // later. Throttled the same way the liquid filter's own
+        // cursor-tracking tick already is; a glow/particle layer lagging
+        // a frame or two behind is imperceptible.
+        let frameSkip = 0;
+        const updateRate = isLikelyLowEnd ? 3 : 2;
+        (function tickPosition() {
+          frameSkip = (frameSkip + 1) % updateRate;
+          if (frameSkip === 0) {
+            const m = getComputedStyle(sphere).transform;
+            glow.style.transform = m;
+            canvas.style.transform = m;
+          }
+          requestAnimationFrame(tickPosition);
+        })();
+
+        // Approximates the orb's current hue-rotation state (driven
+        // purely by SMIL/CSS elsewhere, with no JS-readable value of its
+        // own) as a plain 0-360 loop of the same --duration-orb length —
+        // close enough for "sample or approximate," and cheap: a handful
+        // of arithmetic ops per tick, not a real color sample.
+        const hueDurationSec = parseFloat(durStr("--duration-orb", "48s")) || 48;
+        const currentHueOffset = () => ((performance.now() / 1000) % hueDurationSec) / hueDurationSec * 360;
+        const baseHues = [45, 336, 199]; // the gradient's three chromatic stops (yellow/pink/blue) — white has no hue to sample
+
+        // Orb's own edge sits at 50% of its own box from center; this
+        // canvas's box is deliberately 1.5x that (see style.css), so the
+        // same edge lands at 0.5/1.5 of *this* box instead.
+        const ORB_EDGE_FRACTION = 0.5 / 1.5;
+        const MAX_PARTICLES = 2;
+        const particles = [];
+        let nextSpawnAt = performance.now() + 2000 + Math.random() * 3000;
+
+        function spawnParticle() {
+          const angle = Math.random() * Math.PI * 2;
+          const r = CANVAS_SIZE * (ORB_EDGE_FRACTION - 0.03 + Math.random() * 0.06);
+          particles.push({
+            x: CANVAS_SIZE / 2 + Math.cos(angle) * r,
+            y: CANVAS_SIZE / 2 + Math.sin(angle) * r,
+            vx: Math.cos(angle) * (0.015 + Math.random() * 0.015),
+            vy: -0.06 - Math.random() * 0.05,
+            size: 2 + Math.random() * 2.5,
+            hue: baseHues[Math.floor(Math.random() * baseHues.length)],
+            bornAt: performance.now(),
+            lifespan: 5000 + Math.random() * 3000,
+          });
+        }
+
+        (function tickParticles() {
+          const now = performance.now();
+          if (particles.length < MAX_PARTICLES && now > nextSpawnAt) {
+            spawnParticle();
+            nextSpawnAt = now + 3000 + Math.random() * 5000;
+          }
+          if (particles.length) {
+            ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+            const hueOffset = currentHueOffset();
+            for (let i = particles.length - 1; i >= 0; i--) {
+              const p = particles[i];
+              const age = now - p.bornAt;
+              if (age > p.lifespan) { particles.splice(i, 1); continue; }
+              p.x += p.vx;
+              p.y += p.vy;
+              const lifeFrac = age / p.lifespan;
+              const opacity = lifeFrac < 0.2 ? lifeFrac / 0.2 : lifeFrac > 0.7 ? (1 - lifeFrac) / 0.3 : 1;
+              const hue = (p.hue + hueOffset) % 360;
+              const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size);
+              grad.addColorStop(0, `hsla(${hue}, 80%, 70%, ${(opacity * 0.5).toFixed(2)})`);
+              grad.addColorStop(1, `hsla(${hue}, 80%, 70%, 0)`);
+              ctx.fillStyle = grad;
+              ctx.beginPath();
+              ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+              ctx.fill();
+            }
+          }
+          requestAnimationFrame(tickParticles);
+        })();
+      }
+    }
+  }
+
   // --- Magnetic ghost-links / nav links (site-wide, pointer devices only) ---
   if (canHover && !reducedMotion) {
     const magneticEls = Array.from(document.querySelectorAll(".ghost-link, nav a"));
