@@ -225,31 +225,44 @@ a {
    (comparatively expensive) SVG liquid filter and stacking another
    filter operation onto the same element would compound that cost on
    every repaint; this stays independent and cheap (a single CSS
-   blur()). Mirrors .sphere's own base position/size exactly (see the
-   per-context overrides below) so a plain blur bleeds symmetrically
-   around the same center, no separate size math needed. */
+   blur()). 15% bigger than .sphere's own box (kept centered via the
+   top/right offsets below, same pattern as .orb-particles further
+   down) — an undeformed circle sized to *match* the orb exactly was
+   confirmed live to sit directly behind the liquid filter's own
+   organic dents/bumps and wash them out visually, even at low opacity,
+   since a hard(ish) same-shaped edge right behind an irregular one
+   reads as the "real" edge. The radial mask is the actual fix: it
+   makes the glow nearly transparent through the orb's own silhouette
+   (with a little margin) and only visible in the ring outside it, so
+   there's no undeformed colored edge sitting behind the dent at all —
+   the size/blur increase alone wasn't enough on its own. */
 .orb-glow {
   position: absolute;
-  top: -60px;
-  right: -5px;
-  width: min(580px, 20vw);
-  height: min(580px, 20vw);
+  top: calc(-60px - min(580px, 20vw) * 0.075);
+  right: calc(-5px - min(580px, 20vw) * 0.075);
+  width: calc(min(580px, 20vw) * 1.15);
+  height: calc(min(580px, 20vw) * 1.15);
   border-radius: 50%;
   background: var(--gradient-iridescent-sphere);
-  filter: blur(40px);
-  opacity: 0.3;
+  filter: blur(55px);
+  opacity: 0.35;
+  /* Orb's own edge sits at 0.5/1.15 ≈ 43.5% of this box's radius —
+     transparent through 40% (a little short of that, so the mask's own
+     soft ramp doesn't start inside the orb's silhouette), ramping to
+     fully visible by 60%, comfortably outside it. */
+  mask-image: radial-gradient(circle, transparent 0%, transparent 40%, black 60%, black 100%);
+  -webkit-mask-image: radial-gradient(circle, transparent 0%, transparent 40%, black 60%, black 100%);
   pointer-events: none;
   z-index: -1;
 }
 
 /* Sparse ambient particle layer — a <canvas>, not SVG, kept cheap (a
-   couple of small radial-gradient circles redrawn per frame costs far
-   less than another feTurbulence/feDisplacementMap graph). Sized larger
-   than .sphere's own box (unlike .orb-glow above, which just matches it)
-   because canvas content is hard-clipped to its own box with no blur to
-   bleed past it — motion.js spawns particles right around .sphere's own
-   edge and lets them drift outward, so they need real room past that
-   edge to fade out in rather than being clipped mid-drift. */
+   few small radial-gradient circles redrawn per frame costs far less
+   than another feTurbulence/feDisplacementMap graph). Sized larger than
+   .sphere's own box because canvas content is hard-clipped to its own
+   box with no blur to bleed past it, and motion.js's particles drift
+   slowly around within this whole area, not just near the edge — they
+   need real room to do that without being clipped mid-drift. */
 .orb-particles {
   position: absolute;
   top: calc(-60px - min(580px, 20vw) * 0.25);
@@ -312,8 +325,8 @@ a {
      .sphere's own rule just above. */
   .orb-frame .orb-glow {
     position: fixed;
-    top: var(--orb-rest-top);
-    right: var(--orb-rest-right);
+    top: calc(var(--orb-rest-top) - min(580px, 20vw) * 0.075);
+    right: calc(var(--orb-rest-right) - min(580px, 20vw) * 0.075);
     animation: orb-glow-hue var(--duration-orb) linear infinite;
   }
 
@@ -328,8 +341,8 @@ a {
      reading or re-triggering that SMIL animation directly — close enough
      to read as "the same light," genuinely independent to build. */
   @keyframes orb-glow-hue {
-    from { filter: blur(40px) hue-rotate(0deg); }
-    to   { filter: blur(40px) hue-rotate(360deg); }
+    from { filter: blur(55px) hue-rotate(0deg); }
+    to   { filter: blur(55px) hue-rotate(360deg); }
   }
 }
 
@@ -513,10 +526,14 @@ nav a.active::after {
 /* The orb here is the exact same element/size as the Home hero's — only
    its position differs, sitting flush inside the page column (no negative
    offset, so nothing bleeds past the header's own box and needs cropping). */
-.page-header .sphere,
-.page-header .orb-glow {
+.page-header .sphere {
   top: 0;
   right: 0;
+}
+
+.page-header .orb-glow {
+  top: calc(0px - min(580px, 20vw) * 0.075);
+  right: calc(0px - min(580px, 20vw) * 0.075);
 }
 
 .page-header .orb-particles {

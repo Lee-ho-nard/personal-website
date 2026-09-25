@@ -384,10 +384,11 @@
   }
 
   // --- Ambient glow + sparse particles (every page, purely decorative —
-  // genuinely independent of the five systems above: reads .sphere's own
-  // live computed transform to track its position/scroll-depth growth
-  // rather than sharing or re-deriving any of their internal state, and
-  // never touches the SVG filter/displacement graph at all). ---
+  // genuinely independent of the five systems above: reconstructs
+  // .sphere's own transform from its live custom-property *values*
+  // (plain inline-style reads, not getComputedStyle — see readSphereTransform's
+  // own comment) rather than sharing or re-deriving any of their internal
+  // state, and never touches the SVG filter/displacement graph at all). ---
   {
     const frame = document.querySelector(".orb-frame");
     const sphere = frame ? frame.querySelector(".sphere") : null;
@@ -404,100 +405,206 @@
         // stays a self-contained, independent addition).
         const isLikelyLowEnd = typeof navigator.hardwareConcurrency === "number" && navigator.hardwareConcurrency > 0 && navigator.hardwareConcurrency <= 4;
 
+        // Pauses both systems below when the orb itself is off-screen —
+        // .sphere is position:fixed, so a plain viewport-root observer is
+        // enough. rootMargin gives both a head start/tail rather than a
+        // visible pop right at the edge of the viewport.
+        let orbVisible = true;
+        new IntersectionObserver((entries) => {
+          orbVisible = entries[entries.length - 1].isIntersecting;
+        }, { rootMargin: "100px" }).observe(sphere);
+
         const canvas = document.createElement("canvas");
         canvas.className = "orb-particles";
         canvas.setAttribute("aria-hidden", "true");
         frame.insertBefore(canvas, sphere);
         const ctx = canvas.getContext("2d");
-        // Internal resolution only — CSS gives the element its real
-        // on-screen size, same "draw once, let the transform scale it"
-        // approach the orb's own liquid filter already relies on, so
-        // growth doesn't need its own redraw logic.
+        // CANVAS_SIZE is the logical drawing space every coordinate below
+        // is written in; the backing store itself is scaled up by the
+        // device's real pixel ratio (and ctx scaled to match) so motes
+        // stay crisp on high-DPI screens instead of being upscaled/soft —
+        // CSS still gives the element its on-screen box size, same
+        // "draw once, let the transform scale it" approach the orb's own
+        // liquid filter already relies on for growth.
         const CANVAS_SIZE = 300;
-        canvas.width = CANVAS_SIZE;
-        canvas.height = CANVAS_SIZE;
+        function applyDpr() {
+          const dpr = window.devicePixelRatio || 1;
+          canvas.width = CANVAS_SIZE * dpr;
+          canvas.height = CANVAS_SIZE * dpr;
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        }
+        applyDpr();
+        // window.devicePixelRatio reading wrong (1 instead of the real
+        // ratio) at the exact moment a script first runs is the same
+        // failure mode confirmed live for window.innerWidth elsewhere in
+        // this file (see baseOrbWidth's own comment) — cheap enough to
+        // guard the same way: one corrective re-check after a real
+        // layout/paint pass has definitely happened, rather than trusting
+        // the very first read. setTransform (not scale) so this second
+        // call replaces the matrix instead of compounding onto it.
+        requestAnimationFrame(applyDpr);
 
-        // Copies .sphere's own live computed transform onto both new
-        // elements every tick, whatever combination of scroll-depth
-        // growth, organic wobble, and lean it currently adds up to —
-        // deliberately not reading any of those systems' own state
-        // directly, so this stays correct even if their internals change
-        // later. Throttled the same way the liquid filter's own
-        // cursor-tracking tick already is; a glow/particle layer lagging
-        // a frame or two behind is imperceptible.
+        // Reconstructs .sphere's own transform from the exact same
+        // custom-property values its CSS rule (.orb-frame .sphere in
+        // style.css) reads, instead of getComputedStyle(sphere).transform
+        // — reading a *computed* value forces a style recalculation, and
+        // if the scroll-waypoint timeline or the organic-wobble tick
+        // (both outside this block, so their call order relative to this
+        // one isn't something this block controls) had already written a
+        // fresh transform earlier the same frame, that recalculation
+        // would be real, avoidable work. Reading the raw inline-style
+        // values back via getPropertyValue is a plain property lookup —
+        // no cascade involved at all — so this stays cheap regardless of
+        // write order.
+        function readSphereTransform() {
+          const sx = sphere.style.getPropertyValue("--scroll-x") || "0px";
+          const sy = sphere.style.getPropertyValue("--scroll-y") || "0px";
+          const ox = sphere.style.getPropertyValue("--organic-x") || "0px";
+          const oy = sphere.style.getPropertyValue("--organic-y") || "0px";
+          const ss = sphere.style.getPropertyValue("--scroll-scale") || "1";
+          const os = sphere.style.getPropertyValue("--organic-scale") || "1";
+          return `translate(${sx}, ${sy}) translate(${ox}, ${oy}) scale(${ss}) scale(${os})`;
+        }
+
         let frameSkip = 0;
         const updateRate = isLikelyLowEnd ? 3 : 2;
         (function tickPosition() {
           frameSkip = (frameSkip + 1) % updateRate;
-          if (frameSkip === 0) {
-            const m = getComputedStyle(sphere).transform;
-            glow.style.transform = m;
-            canvas.style.transform = m;
+          if (frameSkip === 0 && orbVisible) {
+            const t = readSphereTransform();
+            glow.style.transform = t;
+            canvas.style.transform = t;
           }
           requestAnimationFrame(tickPosition);
         })();
 
-        // Approximates the orb's current hue-rotation state (driven
-        // purely by SMIL/CSS elsewhere, with no JS-readable value of its
-        // own) as a plain 0-360 loop of the same --duration-orb length —
-        // close enough for "sample or approximate," and cheap: a handful
-        // of arithmetic ops per tick, not a real color sample.
         const hueDurationSec = parseFloat(durStr("--duration-orb", "48s")) || 48;
-        const currentHueOffset = () => ((performance.now() / 1000) % hueDurationSec) / hueDurationSec * 360;
-        const baseHues = [45, 336, 199]; // the gradient's three chromatic stops (yellow/pink/blue) — white has no hue to sample
 
-        // Orb's own edge sits at 50% of its own box from center; this
-        // canvas's box is deliberately 1.5x that (see style.css), so the
-        // same edge lands at 0.5/1.5 of *this* box instead.
-        const ORB_EDGE_FRACTION = 0.5 / 1.5;
-        const MAX_PARTICLES = 2;
+        // Phase-locks the glow's CSS hue-rotate to the SVG filter's own
+        // SMIL hue rotation via a negative animation-delay, rather than
+        // just trusting matching durations to stay in sync — the two run
+        // on entirely different animation engines (CSS vs. SMIL) that
+        // can drift apart whenever either gets throttled/paused
+        // independently, a backgrounded tab especially. Re-synced on
+        // visibilitychange for exactly that case. (Confirmed by reading
+        // the filter graph, not assumed: the SMIL animation is on
+        // feColorMatrix type="hueRotate" — a true hue rotation of the
+        // rendered pixels, the same kind of operation as CSS's own
+        // hue-rotate(), not a rotation of any geometry — the silhouette
+        // morph is a fully separate feTurbulence/baseFrequency animation.
+        // So the only real approximation left is that the glow rotates
+        // its own separate gradient rather than literally sampling the
+        // orb's rendered pixels — the rotation mechanism itself matches.)
+        function syncGlowPhase() {
+          const svgHost = document.getElementById("liquid-filter-defs");
+          if (!svgHost || typeof svgHost.getCurrentTime !== "function") return;
+          const t = svgHost.getCurrentTime() % hueDurationSec;
+          glow.style.animationDelay = "-" + t.toFixed(3) + "s";
+          // A negative animation-delay only takes effect as a phase
+          // offset at the moment the animation (re)starts — setting it
+          // on an already-running animation (exactly what happens on the
+          // visibilitychange re-sync below) does not retroactively seek
+          // it, confirmed live: the glow kept drifting at its old phase
+          // after the delay was updated. Dropping animation-name and
+          // restoring it after a forced reflow read is what actually
+          // makes the new delay take effect immediately, on every call.
+          glow.style.animationName = "none";
+          void glow.offsetWidth;
+          glow.style.animationName = "";
+        }
+        syncGlowPhase();
+        document.addEventListener("visibilitychange", () => {
+          if (document.visibilityState === "visible") syncGlowPhase();
+        });
+
+        const baseHues = [45, 336, 199]; // gradient's three chromatic stops (yellow/pink/blue) — white has no hue to sample
+        const hueFor = (baseHue) => (baseHue + ((performance.now() / 1000) % hueDurationSec) / hueDurationSec * 360) % 360;
+
+        // Sparse ambient particles: a small <canvas> (not SVG — a
+        // handful of soft-edged circles redrawn per frame costs far less
+        // than another feTurbulence/feDisplacementMap graph). Spawn
+        // anywhere in the canvas area rather than anchored to the orb's
+        // own edge, and drift with a slowly wandering heading rather
+        // than a fixed outward vector — anchoring spawn to the edge with
+        // a straight radial drift read as the orb visibly "emitting"
+        // motes, confirmed live, not the quiet ambient dust intended.
+        const MAX_PARTICLES = 4;
         const particles = [];
-        let nextSpawnAt = performance.now() + 2000 + Math.random() * 3000;
 
         function spawnParticle() {
-          const angle = Math.random() * Math.PI * 2;
-          const r = CANVAS_SIZE * (ORB_EDGE_FRACTION - 0.03 + Math.random() * 0.06);
+          const margin = CANVAS_SIZE * 0.08;
           particles.push({
-            x: CANVAS_SIZE / 2 + Math.cos(angle) * r,
-            y: CANVAS_SIZE / 2 + Math.sin(angle) * r,
-            vx: Math.cos(angle) * (0.015 + Math.random() * 0.015),
-            vy: -0.06 - Math.random() * 0.05,
-            size: 2 + Math.random() * 2.5,
+            x: margin + Math.random() * (CANVAS_SIZE - margin * 2),
+            y: margin + Math.random() * (CANVAS_SIZE - margin * 2),
+            angle: Math.random() * Math.PI * 2,
+            size: 1.2 + Math.random() * 1.3,
             hue: baseHues[Math.floor(Math.random() * baseHues.length)],
             bornAt: performance.now(),
-            lifespan: 5000 + Math.random() * 3000,
+            lifespan: 6000 + Math.random() * 4000,
           });
         }
 
-        (function tickParticles() {
+        let nextSpawnAt = performance.now() + 1000 + Math.random() * 2000;
+
+        function drawParticles() {
           const now = performance.now();
           if (particles.length < MAX_PARTICLES && now > nextSpawnAt) {
             spawnParticle();
-            nextSpawnAt = now + 3000 + Math.random() * 5000;
+            nextSpawnAt = now + 1500 + Math.random() * 3000;
           }
-          if (particles.length) {
-            ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
-            const hueOffset = currentHueOffset();
-            for (let i = particles.length - 1; i >= 0; i--) {
-              const p = particles[i];
-              const age = now - p.bornAt;
-              if (age > p.lifespan) { particles.splice(i, 1); continue; }
-              p.x += p.vx;
-              p.y += p.vy;
-              const lifeFrac = age / p.lifespan;
-              const opacity = lifeFrac < 0.2 ? lifeFrac / 0.2 : lifeFrac > 0.7 ? (1 - lifeFrac) / 0.3 : 1;
-              const hue = (p.hue + hueOffset) % 360;
-              const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size);
-              grad.addColorStop(0, `hsla(${hue}, 80%, 70%, ${(opacity * 0.5).toFixed(2)})`);
-              grad.addColorStop(1, `hsla(${hue}, 80%, 70%, 0)`);
-              ctx.fillStyle = grad;
-              ctx.beginPath();
-              ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-              ctx.fill();
-            }
+          ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+          for (let i = particles.length - 1; i >= 0; i--) {
+            const p = particles[i];
+            const age = now - p.bornAt;
+            if (age > p.lifespan) { particles.splice(i, 1); continue; }
+            // Heading wanders instead of holding a fixed direction, so
+            // the path reads as loose, aimless dust rather than a
+            // straight flight — verified with a standalone simulation
+            // (net-displacement / path-length ratio), not just eyeballed:
+            // a 0.15 rad/tick wander rate (tried first) still produced a
+            // ~0.95 ratio, i.e. still basically a straight line, over a
+            // realistic tick count. 0.9 rad/tick gets that down to
+            // ~0.33-0.43, genuinely non-straight. The constant nudge
+            // keeps a slight overall upward/leftward tendency (embers
+            // rising) on top of the wander; it has to stay well below
+            // the wander step's own magnitude (~0.025) or it dominates
+            // and flattens the path back toward a straight line, which
+            // is exactly what a first attempt at this (-0.01/-0.025) did.
+            p.angle += (Math.random() - 0.5) * 0.9;
+            p.x += Math.cos(p.angle) * 0.025 - 0.002;
+            p.y += Math.sin(p.angle) * 0.025 - 0.004;
+            const lifeFrac = age / p.lifespan;
+            const opacity = lifeFrac < 0.25 ? lifeFrac / 0.25 : lifeFrac > 0.75 ? (1 - lifeFrac) / 0.25 : 1;
+            const hue = hueFor(p.hue);
+            const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size);
+            grad.addColorStop(0, `hsla(${hue}, 75%, 72%, ${(opacity * 0.3).toFixed(2)})`);
+            grad.addColorStop(1, `hsla(${hue}, 75%, 72%, 0)`);
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+            ctx.fill();
           }
+        }
+
+        // Runs on rAF only while there's actually something to animate
+        // (active particles, or a spawn imminent) and the orb is
+        // on-screen; otherwise sleeps via setTimeout until close to the
+        // next spawn instead of polling every single frame for nothing
+        // to do.
+        function tickParticles() {
+          if (!orbVisible) {
+            setTimeout(tickParticles, 400);
+            return;
+          }
+          const now = performance.now();
+          if (particles.length === 0 && now < nextSpawnAt - 200) {
+            setTimeout(tickParticles, Math.min(nextSpawnAt - now, 2000));
+            return;
+          }
+          drawParticles();
           requestAnimationFrame(tickParticles);
-        })();
+        }
+        tickParticles();
       }
     }
   }
