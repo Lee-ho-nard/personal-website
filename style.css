@@ -104,6 +104,7 @@
   --stagger-step: 75ms;
 
   /* Motion — Cursor Interaction */
+  --orb-bounce-distance: 14px;
   --magnetic-radius: 70px;
   --magnetic-strength: 0.3;
 }
@@ -257,8 +258,13 @@ a {
        --organic-y/--organic-scale are a separate, independent time-driven
        wobble layered on top via its own requestAnimationFrame tick, so it
        keeps running regardless of what the scroll timeline is doing (see
-       motion.js) rather than being computed inside the same tween. */
-    transform: translate(var(--scroll-x, 0px), var(--scroll-y, 0px)) translate(var(--organic-x, 0px), var(--organic-y, 0px)) scale(var(--scroll-scale, 1)) scale(var(--organic-scale, 1));
+       motion.js) rather than being computed inside the same tween.
+       --bounce-x/--bounce-y are a third, equally independent layer: a
+       one-shot spring offset (see motion.js's orb-bounce section) that
+       sits first in the chain, outside the scale()s, so it's always real
+       screen px regardless of how far the depth-growth has scaled the
+       orb, and simply adds to wherever the other two layers put it. */
+    transform: translate(var(--bounce-x, 0px), var(--bounce-y, 0px)) translate(var(--scroll-x, 0px), var(--scroll-y, 0px)) translate(var(--organic-x, 0px), var(--organic-y, 0px)) scale(var(--scroll-scale, 1)) scale(var(--organic-scale, 1));
     opacity: var(--scroll-opacity, 1);
     transition: opacity var(--duration-base) var(--ease-standard);
   }

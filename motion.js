@@ -1,5 +1,5 @@
-// Cursor-reactive + scroll-linked motion: the orb's liquid press effect,
-// magnetic buttons/nav links, and the Home-only scroll-linked orb. Each
+// Cursor-reactive + scroll-linked motion: the orb's liquid press effect
+// and one-shot bounce, magnetic buttons/nav links, and the scroll-linked orb. Each
 // effect is gated independently — scroll-linking only needs reduced-motion
 // off; cursor effects also need a real pointer.
 (function () {
@@ -379,6 +379,124 @@
           }
           requestAnimationFrame(tickPress);
         })();
+      }
+    }
+  }
+
+  // --- Orb bounce (every page): a one-shot "flinch" when the pointer
+  // enters the same catch-zone the liquid press uses — the whole orb gets
+  // a small impulse directly away from the pointer and then rings back to
+  // rest on a damped spring (a ball on a string), as its own additive
+  // translate (--bounce-x/--bounce-y, first in .sphere's transform chain
+  // in style.css) on top of wherever the GSAP waypoints and organic
+  // wobble already have it — neither is read or written here.
+  //
+  // A real spring integration rather than the --ease-spring token: that
+  // token is a single-overshoot cubic-bezier (one wobble, no ringing) and
+  // can't drive an unregistered custom property anyway; an impulse into a
+  // damped spring gives the "one or two small oscillations" asked for and
+  // an away-then-back motion with no instant jump. Under reduced motion
+  // none of this is set up (the liquid filter, and so the dent, isn't
+  // either). Hover devices fire on pointermove entry; touch devices have
+  // no hover, so they fire on pointerdown inside the zone instead. ---
+  if (!reducedMotion) {
+    const frame = document.querySelector(".orb-frame");
+    const sphere = frame ? frame.querySelector(".sphere") : null;
+
+    if (frame && sphere) {
+      const BOUNCE_DISTANCE = px("--orb-bounce-distance", 14); // peak offset of the first, away-from-pointer swing
+      const OMEGA = 10.5; // natural frequency (rad/s) — roughly a 0.6s period
+      const ZETA = 0.3; // damping ratio — underdamped: ~37% overshoot, settling in ~1.3s
+      // Same catch-zone as the liquid press, in the same orb-box-relative
+      // units; the exit threshold is a little wider so the pointer
+      // jittering across the boundary can't re-fire it.
+      const ENTER_DIST = 0.9;
+      const EXIT_DIST = 1.05;
+
+      // The impulse that makes the first swing peak at BOUNCE_DISTANCE:
+      // for x(t) = (v0/wd)·e^(−ζωt)·sin(wd·t) the peak lands where
+      // tan(wd·t) = wd/(ζω), so solve for v0 instead of hand-tuning it.
+      const omegaD = OMEGA * Math.sqrt(1 - ZETA * ZETA);
+      const tPeak = Math.atan(omegaD / (ZETA * OMEGA)) / omegaD;
+      const peakPerVelocity = Math.exp(-ZETA * OMEGA * tPeak) * Math.sin(omegaD * tPeak) / omegaD;
+      const IMPULSE = BOUNCE_DISTANCE / peakPerVelocity;
+
+      let bx = 0, by = 0, vx = 0, vy = 0;
+      let running = false;
+      let lastT = 0;
+      let armed = true;
+
+      function write() {
+        sphere.style.setProperty("--bounce-x", bx.toFixed(2) + "px");
+        sphere.style.setProperty("--bounce-y", by.toFixed(2) + "px");
+      }
+
+      function step(now) {
+        const dt = Math.min((now - lastT) / 1000, 1 / 20);
+        lastT = now;
+        // Fixed small substeps keep the semi-implicit Euler integration
+        // accurate (and stable) however long a frame took.
+        const n = Math.max(1, Math.ceil(dt / (1 / 240)));
+        const h = dt / n;
+        for (let i = 0; i < n; i++) {
+          vx += (-OMEGA * OMEGA * bx - 2 * ZETA * OMEGA * vx) * h;
+          vy += (-OMEGA * OMEGA * by - 2 * ZETA * OMEGA * vy) * h;
+          bx += vx * h;
+          by += vy * h;
+        }
+        if (Math.abs(bx) < 0.02 && Math.abs(by) < 0.02 && Math.abs(vx) < 0.5 && Math.abs(vy) < 0.5) {
+          bx = by = vx = vy = 0;
+          write();
+          running = false;
+          return;
+        }
+        write();
+        requestAnimationFrame(step);
+      }
+
+      function trigger(awayX, awayY) {
+        const len = Math.hypot(awayX, awayY);
+        // A pointer dead-center has no "away"; flinch upward.
+        const ux = len > 1 ? awayX / len : 0;
+        const uy = len > 1 ? awayY / len : -1;
+        vx = ux * IMPULSE;
+        vy = uy * IMPULSE;
+        if (!running) {
+          running = true;
+          lastT = performance.now();
+          requestAnimationFrame(step);
+        }
+      }
+
+      // Distance to the orb's *rest* center in orb-box units. The rect
+      // already includes the bounce offset, so it's subtracted back out —
+      // otherwise the orb moving away from the pointer would carry it out
+      // of its own catch-zone mid-bounce and then back in, re-firing it.
+      function probe(e) {
+        const r = sphere.getBoundingClientRect();
+        const cx = r.left + r.width / 2 - bx;
+        const cy = r.top + r.height / 2 - by;
+        const dx = e.clientX - cx;
+        const dy = e.clientY - cy;
+        return { dist: Math.hypot(dx / r.width, dy / r.height), awayX: -dx, awayY: -dy };
+      }
+
+      if (canHover) {
+        window.addEventListener("pointermove", (e) => {
+          const p = probe(e);
+          if (armed && p.dist <= ENTER_DIST) {
+            armed = false;
+            trigger(p.awayX, p.awayY);
+          } else if (!armed && p.dist > EXIT_DIST) {
+            armed = true;
+          }
+        }, { passive: true });
+        window.addEventListener("pointerleave", () => { armed = true; });
+      } else {
+        window.addEventListener("pointerdown", (e) => {
+          const p = probe(e);
+          if (p.dist <= ENTER_DIST) trigger(p.awayX, p.awayY);
+        }, { passive: true });
       }
     }
   }
