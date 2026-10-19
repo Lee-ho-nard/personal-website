@@ -5,6 +5,14 @@
 (function () {
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const canHover = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+  // `canHover` above only describes the *primary* input, which touch-capable
+  // laptops/2-in-1s report as coarse/no-hover even while a real mouse is in
+  // use — so anything gated on it silently never runs for them (the orb's
+  // hover reactions did exactly that: the bounce only worked on click, and
+  // the dent's filter layer was never even built). `any-*` asks whether
+  // *any* attached input can hover, and each handler then filters by the
+  // individual event's own pointerType, which is always accurate.
+  const hasMouse = window.matchMedia("(any-hover: hover), (any-pointer: fine)").matches;
 
   const styles = getComputedStyle(document.documentElement);
   const px = (name, fallback) => parseFloat(styles.getPropertyValue(name)) || fallback;
@@ -288,7 +296,7 @@
       // has a texture lever to pull, only the press tick's own update
       // rate below.
       const liquidOpts = () => ({
-        enablePress: canHover,
+        enablePress: hasMouse,
       });
       let liquid = buildLiquidFilter(filterId, orbSize(), liquidOpts());
       sphere.style.filter = "url(#" + filterId + ")";
@@ -328,7 +336,7 @@
       // sphere's own live rect rather than the page-top .orb-frame box,
       // since its fixed viewport position diverges from any ancestor's
       // document position once the page scrolls.
-      if (canHover) {
+      if (hasMouse) {
         let targetPX = 0.5;
         let targetPY = 0.5;
         let targetIntensity = 0;
@@ -397,8 +405,8 @@
   // damped spring gives the "one or two small oscillations" asked for and
   // an away-then-back motion with no instant jump. Under reduced motion
   // none of this is set up (the liquid filter, and so the dent, isn't
-  // either). Hover devices fire on pointermove entry; touch devices have
-  // no hover, so they fire on pointerdown inside the zone instead. ---
+  // either). A mouse/pen fires on pointermove entry (no click needed);
+  // touch has no hover, so it fires on pointerdown inside the zone. ---
   if (!reducedMotion) {
     const frame = document.querySelector(".orb-frame");
     const sphere = frame ? frame.querySelector(".sphere") : null;
@@ -481,23 +489,26 @@
         return { dist: Math.hypot(dx / r.width, dy / r.height), awayX: -dx, awayY: -dy };
       }
 
-      if (canHover) {
-        window.addEventListener("pointermove", (e) => {
-          const p = probe(e);
-          if (armed && p.dist <= ENTER_DIST) {
-            armed = false;
-            trigger(p.awayX, p.awayY);
-          } else if (!armed && p.dist > EXIT_DIST) {
-            armed = true;
-          }
-        }, { passive: true });
-        window.addEventListener("pointerleave", () => { armed = true; });
-      } else {
-        window.addEventListener("pointerdown", (e) => {
-          const p = probe(e);
-          if (p.dist <= ENTER_DIST) trigger(p.awayX, p.awayY);
-        }, { passive: true });
-      }
+      // Both listeners are always attached and routed by the event's own
+      // pointerType rather than by a media query (see hasMouse above):
+      // mouse/pen fire on *hover entry* — no click — and touch, which has
+      // no hover, fires on pointerdown inside the zone instead.
+      window.addEventListener("pointermove", (e) => {
+        if (e.pointerType === "touch") return;
+        const p = probe(e);
+        if (armed && p.dist <= ENTER_DIST) {
+          armed = false;
+          trigger(p.awayX, p.awayY);
+        } else if (!armed && p.dist > EXIT_DIST) {
+          armed = true;
+        }
+      }, { passive: true });
+      window.addEventListener("pointerleave", () => { armed = true; });
+      window.addEventListener("pointerdown", (e) => {
+        if (e.pointerType !== "touch") return;
+        const p = probe(e);
+        if (p.dist <= ENTER_DIST) trigger(p.awayX, p.awayY);
+      }, { passive: true });
     }
   }
 
