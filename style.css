@@ -102,11 +102,24 @@
   --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   --stagger-step: 75ms;
+  /* Per-word offset for the scroll-revealed section headings (see
+     motion.js's heading-reveal section) — shorter than --stagger-step,
+     since a heading is two to four words, not a sequence of separate
+     elements. */
+  --stagger-heading: 60ms;
 
   /* Motion — Cursor Interaction */
   --orb-bounce-distance: 14px;
   --magnetic-radius: 70px;
   --magnetic-strength: 0.3;
+
+  /* Depth — Work page tilt cards (see motion.js's tilt-card section) */
+  --card-tilt-max: 8deg;
+  --card-tilt-lerp: 0.12;
+  --card-tilt-depth: 22px;
+  --card-shadow-shift: 18px;
+  --card-shadow-color: color-mix(in srgb, var(--color-ink) 16%, transparent);
+  --project-card-media-width: 440px;
 }
 
 /* --- Cross-document view transitions --- */
@@ -545,6 +558,30 @@ section h2 {
   margin-bottom: var(--spacing-15);
 }
 
+/* Scroll-revealed heading words (motion.js splits each `main h2` into
+   these; the reveal itself is a GSAP tween on .split-word__inner). Words,
+   not characters: splitting per character would drop the kerning
+   between letters inside a word and so change the heading's measured
+   width, which the orb's hand-placed waypoints are derived from. The
+   mask's padding is cancelled exactly by an equal negative margin, so
+   its margin box — the only part layout sees — is the plain word's own
+   box, while the clip region still extends far enough past the line box
+   (the heading's line-height is only 0.9) not to shave glyph overshoot
+   or side bearings at rest. vertical-align: top because an inline-block
+   with overflow other than visible otherwise takes its baseline from
+   its bottom margin edge, which would shift the line. */
+.split-word {
+  display: inline-block;
+  vertical-align: top;
+  overflow: hidden;
+  padding: 0.15em 0.1em;
+  margin: -0.15em -0.1em;
+}
+
+.split-word__inner {
+  display: block;
+}
+
 section p {
   font-size: var(--text-body);
   line-height: var(--leading-body);
@@ -687,6 +724,141 @@ section p:last-of-type {
 .meta-list dd {
   font-size: var(--text-body-sm);
   letter-spacing: var(--tracking-body-sm);
+}
+
+/* --- Tilt cards (Work page) ---
+   A real CSS 3D tilt: .tilt-card is the perspective wrapper (and the
+   pointer target — it never itself transforms, so its hit area can't
+   wobble while the card under it moves), .tilt-card__card is what
+   rotates, and the shots inside sit at different translateZ depths so
+   they separate as it turns. motion.js only ever writes four custom
+   properties (--tilt-rx/--tilt-ry, --card-shadow-x/--card-shadow-y); the
+   transform and the shadow themselves live here. With no mouse/pen
+   pointer ever moving over it (touch-only, or reduced motion) none of
+   those are set and it just sits at rest.
+
+   Stacked by default (text, then card, same side the block already
+   hugs); side by side only once there's room for the full 60ch text
+   column beside it, so the text keeps its existing width and edge. */
+.tilt-card {
+  perspective: 900px;
+  width: 100%;
+  max-width: var(--project-card-media-width);
+  margin-top: var(--spacing-30);
+}
+
+.tilt-card__card {
+  position: relative;
+  aspect-ratio: 6 / 5;
+  background: var(--color-stone);
+  transform-style: preserve-3d;
+  transform: rotateX(var(--tilt-rx, 0deg)) rotateY(var(--tilt-ry, 0deg));
+  /* Three stacked layers (tight contact, mid, long ambient), offset
+     opposite to the tilt via --card-shadow-x/y (see motion.js), scaled
+     so the long layer moves the most. This is the one place the site
+     uses shadows at all — an explicit exception to the flat-surface
+     rule, see design.md. */
+  box-shadow:
+    calc(var(--card-shadow-x, 0px) * 0.25) calc(var(--card-shadow-y, 0px) * 0.25 + 2px) 6px var(--card-shadow-color),
+    calc(var(--card-shadow-x, 0px) * 0.6) calc(var(--card-shadow-y, 0px) * 0.6 + 10px) 24px var(--card-shadow-color),
+    var(--card-shadow-x, 0px) calc(var(--card-shadow-y, 0px) + 26px) 54px var(--card-shadow-color);
+  will-change: transform;
+}
+
+.tilt-card__stage {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+}
+
+/* Each shot: its own slight rotation and a depth multiplier of
+   --card-tilt-depth. width/height attributes plus aspect-ratio reserve
+   the exact box before the image loads, so nothing shifts the layout the
+   orb's waypoints are measured against. */
+.tilt-shot {
+  position: absolute;
+  display: block;
+  height: auto;
+  aspect-ratio: 2000 / 1261;
+  background: var(--color-paper);
+  box-shadow: 0 4px 14px var(--card-shadow-color);
+  transform: translateZ(calc(var(--card-tilt-depth) * var(--shot-depth, 0))) rotate(var(--shot-rot, 0deg));
+}
+
+.tilt-shot--analysis { width: 66%; left: 30%; top: 6%;  --shot-rot: 3deg;  --shot-depth: 0.35; }
+.tilt-shot--goals    { width: 56%; left: 6%;  top: 30%; --shot-rot: -3deg; --shot-depth: 0.7; }
+.tilt-shot--deepwork { width: 50%; left: 44%; top: 54%; --shot-rot: -2deg; --shot-depth: 1; }
+.tilt-shot--hero     { width: 78%; left: 11%; top: 17%; --shot-rot: -2deg; --shot-depth: 0.7; }
+
+/* Clearly a placeholder, not a fake screenshot: dashed outline, plain
+   label, no invented UI. */
+.tilt-shot--placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-8);
+  border: 1px dashed var(--color-ink);
+  text-align: center;
+  padding: var(--spacing-15);
+}
+
+.tilt-shot__label {
+  font-size: var(--text-caption);
+  letter-spacing: var(--tracking-caption);
+  text-transform: uppercase;
+}
+
+.tilt-shot__note {
+  font-size: var(--text-body-sm);
+  letter-spacing: var(--tracking-body-sm);
+  line-height: var(--leading-body-sm);
+  opacity: 0.6;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tilt-card__card {
+    will-change: auto;
+  }
+
+  .tilt-shot {
+    transform: rotate(var(--shot-rot, 0deg));
+  }
+}
+
+/* Side by side only when the text column keeps its full 60ch beside the
+   card (1320px viewport = 1180px of content = text + gap + card). The
+   head (label + heading) spans both columns so its available width is
+   exactly what it was before the card existed; the text keeps hugging
+   the same edge it already did, and the card takes the far edge —
+   which, being where the orb also travels, means the orb now passes
+   behind the card (cards sit in the .zigzag stacking context, above it). */
+@media (min-width: 1320px) {
+  .project-card.zigzag {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) var(--project-card-media-width);
+    grid-template-areas:
+      "head head"
+      "body media";
+    column-gap: var(--spacing-46);
+    align-items: center;
+  }
+
+  .project-card.zigzag:nth-of-type(even) {
+    grid-template-columns: var(--project-card-media-width) minmax(0, 1fr);
+    grid-template-areas:
+      "head head"
+      "media body";
+  }
+
+  .project-card__head { grid-area: head; }
+  .project-card__body { grid-area: body; }
+  .tilt-card { grid-area: media; margin-top: 0; }
+
+  .project-card.zigzag:nth-of-type(even) .project-card__head,
+  .project-card.zigzag:nth-of-type(even) .project-card__body {
+    justify-self: end;
+  }
 }
 
 /* --- Ghost link --- */

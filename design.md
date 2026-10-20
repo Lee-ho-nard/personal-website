@@ -103,6 +103,18 @@ Motion is restrained the same way color is: a small, fixed vocabulary reused eve
 | Name | Value | Token | Role |
 |------|-------|-------|------|
 | stagger step | 75ms | `--stagger-step` | Offset between successive elements in an orchestrated sequence (hero entrance, staggered skill tags) |
+| stagger heading | 60ms | `--stagger-heading` | Per-word offset for the scroll-revealed section headings (see Scroll-Revealed Headings) — shorter than `--stagger-step`, since a heading is two to four words, not a sequence of separate elements. Read by motion.js (ms or s) rather than hardcoded |
+
+### Depth (Work page tilt cards)
+
+| Name | Value | Token | Role |
+|------|-------|-------|------|
+| tilt max angle | 8deg | `--card-tilt-max` | Maximum `rotateX`/`rotateY` of a tilt card, reached with the pointer at (or beyond — clamped) the card's edge |
+| tilt lerp | 0.12 | `--card-tilt-lerp` | Per-frame smoothing factor (0–1) of the rAF loop easing the card toward its target angle, and back to rest on leave — measured live as an exact 0.88× remaining-distance ratio per frame |
+| tilt depth | 22px | `--card-tilt-depth` | `translateZ` of the front-most shot inside the card; the other shots take fixed fractions of it (0.35, 0.7), so they separate in depth as the card turns |
+| card shadow shift | 18px | `--card-shadow-shift` | How far the card's layered shadow slides, opposite to the tilt, with the pointer at the card's edge (the longest layer moves the full amount, the nearer ones 0.6× and 0.25×) |
+| card shadow color | ink at 16% | `--card-shadow-color` | `color-mix(in srgb, var(--color-ink) 16%, transparent)` — the one shadow color, so it follows the ink token rather than being a loose rgba |
+| project card media width | 440px | `--project-card-media-width` | Width of a project's visual card, in both the stacked layout and as the second column of the side-by-side one |
 
 ### Cursor Interaction
 
@@ -132,6 +144,30 @@ A large, deliberately dominant circular(-ish — see the silhouette paragraph be
 The sixth layer, the bounce, fires once when the pointer enters the same catch-zone the liquid press uses (0.9 in orb-box units): the whole orb gets an impulse directly away from the pointer, swings out to `--orb-bounce-distance`, and rings back through rest on a damped spring before settling — "flinching from a touch," like a ball on a string. It's a real spring integration (an impulse into a damped oscillator, with the impulse solved analytically so the first swing peaks exactly at the token's distance) rather than the `--ease-spring` token: that token is a single-overshoot cubic-bezier with no ringing, and a CSS transition can't drive an unregistered custom property anyway. It is its own additive `translate(var(--bounce-x), var(--bounce-y))` at the *front* of `.sphere`'s transform chain — outside the `scale()`s, so always real screen px at any depth-growth — alongside the scroll-waypoint and organic-wobble translates, which it neither reads nor writes; verified live that the computed matrix equals bounce + scroll + organic to 0.00px while the GSAP scrub was still catching up mid-bounce. It never re-fires while the pointer lingers: re-arming needs the pointer to leave a slightly wider exit radius (1.05), and the zone test is measured against the orb's *rest* center (the bounce offset subtracted back out), since otherwise the orb moving away would carry it out of its own zone mid-bounce and back in, looping. The rAF loop only runs while the spring is actually moving. A mouse/pen triggers on pointer entry — no click — and touch, which has no hover, triggers on `pointerdown` inside the zone (touch path not live-tested). Both listeners are always attached and routed by each event's own `pointerType`, and the liquid press's filter layer is built whenever *any* hover/fine pointer exists (`(any-hover: hover), (any-pointer: fine)`), deliberately not by the primary-input query `(hover: hover) and (pointer: fine)`: touch-capable laptops/2-in-1s report their *primary* input as coarse/no-hover even while a mouse is in use, and an earlier version gated on that query silently did nothing on hover for them (the bounce only fired on click, and the dent layer was never built at all) — reproduced by forcing that query false and confirming hover produced neither effect. Not set up at all under reduced motion, the same gate as the liquid filter (so the dent is also absent there, not just the bounce).
 
 Its outline is deliberately not a perfect circle, and not via `border-radius`: a real SVG filter (`feTurbulence` + `feDisplacementMap`, built and applied in motion.js's liquid-filter section, not a static asset) pushes every rendered pixel of the gradient around by a noise field, producing genuine, independent, asymmetric bumps and dents — a `border-radius` trick can only ever reshape the element's own box into a rounded-rectangle-family shape (reading as a lumpy oval at best), since it never touches the actual rendered pixels the way a displacement map does. Ambient motion comes from an SMIL `<animate>` on the filter's `baseFrequency` (`--duration-orb-blob`, 46s) — smooth and continuous with zero JS-thread cost, same mechanism used for the hue rotation (folded into the same filter as an `feColorMatrix`, since CSS can only have one `filter` animating an element at a time, and a `border-radius` and a `filter` keyframe on the same element would otherwise fight over it). `numOctaves` is kept at 1 deliberately — a few slow, smooth bumps, not fine-grained noise, so it reads immediately as "the orb" and never as a rendering glitch. Every geometric value (bump count, displacement amount) is derived at build time from the element's own real natural (pre-scroll-growth) pixel size — not `primitiveUnits="objectBoundingBox"`, the spec-correct way to make a filter graph size-independent, which measurably did not behave consistently across element sizes in testing — so the same factory function reproduces the same *relative* look on an element of any size, which is what a planned future full-screen "bleed" version of this effect (the orb dissolving/expanding to fill the viewport) is meant to reuse directly. On fine-pointer devices, moving the cursor near or over the orb locally intensifies the distortion right at that point — a second, higher-frequency turbulence layer, masked to fade out with distance from the cursor via a radial gradient the filter reads through `feImage`, composited on top of the ambient noise — reading as pressing a finger into a liquid surface; it eases back to pure ambient motion once the cursor moves away, and never even builds if the ambient system itself is disabled (see the next paragraph). Only the cursor-tracking part costs anything on the JS thread, and even that's throttled to roughly every second frame (every third on a device `navigator.hardwareConcurrency` suggests is lower-end) — the ambient morph and hue rotation never touch JS at all. Falls back to a plain circle — no filter, no JS setup at all for either the ambient or cursor-reactive layers — under reduced motion, the same gate every other scroll/cursor motion layer on this element already uses.
+
+### Tilt Cards
+**Role:** A real, tangible visual for each Work-page project, next to its text — and the one place the site uses depth and shadow, because that's the whole point of it
+
+Each `.project-card` is now a head (label + heading), a body (the paragraphs and meta list) and a `.tilt-card`. The card is a stone-colored (`--color-stone`), sharp-cornered (0px, per the radius rule) panel holding stacked shots: Flit's is three real screenshots — Analysis, Goals, Deep Work, extracted from `Flit.html` into `img/flit-*.webp` rather than inlined as base64 — each with its own slight rotation and offset, like the floating cards in that file. The MacBook scene from that file is deliberately *not* reproduced; it's reserved for a later Flit landing page. Premium Website Design has no screenshot yet, so its card is a plainly labelled placeholder (dashed outline, "Placeholder — screenshot of the consulting concept site to come"), with the exact replacement `<img>` and spec in an HTML comment beside it: WebP, 2000 × 1261 px (the same ~1.59:1 as the Flit shots), a desktop browser capture of the concept site's home/hero, quality ~80 so it stays under ~80 KB. Every `<img>` carries `width`/`height` and the shot has an `aspect-ratio`, so nothing shifts when images load — the orb's waypoints are measured against this layout.
+
+The 3D is CSS, not JS: `.tilt-card` is the `perspective: 900px` wrapper and pointer target (it never transforms itself, so its hit area can't wobble), `.tilt-card__card` carries `transform: rotateX(var(--tilt-rx)) rotateY(var(--tilt-ry))` with `transform-style: preserve-3d`, and each shot sits at `translateZ(--card-tilt-depth × a fixed fraction)` so they separate as it turns. motion.js only writes four custom properties — the two angles and the shadow offset (`--card-shadow-x/y`, opposite the tilt) — from a rAF loop that lerps by `--card-tilt-lerp`, stops when settled, and returns to exactly 0 on leave; max angle `--card-tilt-max` (8°), clamped when the pointer is outside the card. The shadow is three stacked layers (tight, mid, long) whose offsets scale 0.25 / 0.6 / 1 of the shift, all in `--card-shadow-color`.
+
+**Pointer gating is by event, not media query.** The listener is always attached and only a `pointermove` whose `pointerType` is `mouse` or `pen` does anything, so a touchscreen laptop whose *primary* input reports as coarse/no-hover — which is what made hover effects silently vanish elsewhere on this site (see the hover-reaction note under Hero Gradient Sphere) — still tilts under a trackpad, while a pure-touch device never sends one and gets a static card. Verified by dispatching real `PointerEvent`s and decoding the computed 3D matrix back into angles: centre → 0°/0°; (0.8, −0.8) → 6.4°/6.4°; (−1, 0) → 0°/−8°; (−0.5, 0.5) → −4°/−4°; (1.6, −1.9) → clamped to 8°/8°; shadow offsets exactly opposite; touch ignored, pen works, leave → 0; per-frame approach ratio exactly 0.880 (= 1 − 0.12); shot depths 7.70 / 15.40 / 22.00px. Under reduced motion no listener is attached (verified with the JS-side query forced true: no tilt vars ever set) and the shots drop their `translateZ` in CSS.
+
+**Layout.** Stacked by default (text, then the card, on the side the block already hugs); side by side — a two-column grid, head spanning both, card on the far edge — only from 1320px up, where the text column keeps its full 60ch beside the 440px card. The head's available width and the text's width and edge are therefore unchanged by the card; only block heights change.
+
+**Effect on the orb (measured, not retuned).** Same harness as the original waypoint verification (a sweep of the real orb against real text-line rects every 50px of scroll, GSAP's per-load jitter zeroed and the organic wobble frozen so before/after are comparable), at 1024 and 1700px: *Home is identical to the pixel* at both widths. *Work changed:* at 1700px the Flit block is exactly as tall as before (502px) and Premium grew by 85px; the orb's overlap with Premium's text rose from 208px to 264px (Flit's fell 274 → 267), and its centre now passes behind Flit's card (max 256px) and, briefly, Premium's (41px). At 1024px the stacked layout makes each block ~400px taller (document 1958 → 2751px), and Premium's overlap went from none to 169px (a full orb radius — centre behind a line of text) around scroll 1650, while Flit's fell 167 → 90 and the orb passes behind Flit's card (up to 164px). The mechanism at 1024px: each waypoint is anchored at its block's *vertical centre*, which for the stacked Premium block now lands inside the card below the text rather than in the text, so the orb hasn't finished leaning away while the text is on screen. The Work waypoint plan (`[0.14, -0.92]`) was deliberately left untouched; the text still renders above the orb (z-index fallback), and the cards, being inside `.zigzag`, also sit above it — the orb passes behind them by design. Options if it should be tightened, none applied: anchor Work's waypoints to the head/body instead of the whole block, or drop the stacked card on narrow widths.
+
+### Scroll-Revealed Headings
+**Role:** Section headings ("NOW", "WORK", "FLIT", "PREMIUM WEBSITE DESIGN", the about/life block headings — every `main h2` on all four pages) rise into place word by word as they scroll into view
+
+motion.js splits each heading into per-word masked spans (`.split-word` > `.split-word__inner`) and reveals them with GSAP + ScrollTrigger (already loaded; no new library): each word starts translated 120% down inside its mask and eases to rest with a `--stagger-heading` stagger, once, when the heading's top crosses 85% of the viewport. Duration and easing come from `--duration-slow` and `--ease-standard`, read off the computed style — the latter parsed into a function ease for GSAP, since a CSS `cubic-bezier()` isn't something GSAP reads natively (that's the CustomEase plugin, not worth another script for one curve).
+
+**Words, not characters,** because per-character spans drop the kerning between letters inside a word and so change the heading's measured width — which the orb's waypoint leans are derived from. The mask's padding is cancelled exactly by an equal negative margin (so layout sees only the plain word's box) while the clip region still extends far enough past the heading's 0.9 line-height not to shave glyph overshoot or side bearings, and the masks are `vertical-align: top` so an `overflow: hidden` inline-block doesn't shift the line by taking its baseline from its bottom edge. **Verified not to change geometry:** the heading box (position, size), its line count, its containing block's rect and the whole document height are identical before and after, for all 13 headings, at 1024 and 1700px, on all four pages.
+
+**Accessibility.** Each heading gets `aria-label` with its full text and its word spans are `aria-hidden`, so a screen reader reads the heading normally. Under reduced motion — or if GSAP/ScrollTrigger fail to load — nothing is split at all: headings stay as plain text, i.e. in their final state immediately.
+
+**Coexistence with `.reveal` and the orb.** The section the heading sits in already fades and rises in via `.reveal` (an IntersectionObserver, which can fire well after the 85% line on a tall section), so a heading whose trigger fires first *waits for `.visible`* before playing — otherwise most of the reveal would play at opacity 0; verified (words hold still until the parent is visible). The heading ScrollTriggers are their own, never inside the orb's `gsap.context`, so reverting/rebuilding the orb can't touch a heading and vice versa. They're created once on load and killed/rebuilt on the same 200ms-debounced resize as the orb's own rebuild — registered after it, so its timer runs first — with `ScrollTrigger.refresh()` after both are built. Headings already revealed are never reset by a rebuild (verified; also that repeated resizes don't accumulate triggers and leave the orb's trigger, `start 0 / end 3448` on Home at 1280px, untouched). The split itself runs *before* the orb section in motion.js, so the orb's first geometry measurement already sees the final markup.
 
 ### Zigzag Section Alternation
 **Role:** Gives every page a left-right-left-right rhythm as you scroll, and gives the scroll-linked orb something to weave between
@@ -223,7 +259,7 @@ Pill-shaped ghost button: Ink border 1px, 10px radius, padding 8px 19px. Ataero 
 - Set section labels at 11px with letter-spacing 0.05em and all-caps — this tracking is a brand signature, not a style choice
 - Separate sections with 76–119px vertical margins and use Ash (#bfbebe) 1px hairlines for structural dividers, never colored lines
 - Maintain the monochrome discipline: if a screen needs more than the parchment/ink/white/ash palette, reassess the design before adding color
-- Pull every animation duration and curve from the Motion tokens (`--duration-*`, `--ease-standard`, `--stagger-step`) instead of one-off values
+- Pull every animation duration and curve from the Motion tokens (`--duration-*`, `--ease-standard`, `--stagger-step`, `--stagger-heading`) instead of one-off values — including from JS: motion.js reads them off the computed style (parsing the `cubic-bezier()` token into a function ease for GSAP) rather than restating them
 - Respect `prefers-reduced-motion: reduce` on every animation — drop the transform, keep a near-instant fade
 - Gate cursor-reactive motion so it doesn't exist on touch-only devices — magnetic elements behind `(hover: hover) and (pointer: fine)`; the orb's liquid press and bounce behind `(any-hover: hover), (any-pointer: fine)` plus each event's own `pointerType`, because the primary-input query misreports touch-capable laptops that are being used with a mouse
 - Drive per-frame cursor-position tracking (the orb's press effect, magnetic elements) with `requestAnimationFrame`, never directly in a raw `mousemove`/`pointermove` handler
@@ -231,7 +267,7 @@ Pill-shaped ghost button: Ink border 1px, 10px radius, padding 8px 19px. Ataero 
 ### Don't
 - Do not introduce a second typeface family — Ataero Retina OB is the sole voice
 - Do not use colored fills on buttons, cards, or backgrounds — all interactive surfaces stay ghost or white
-- Do not add drop shadows, box-shadows, or elevation effects — the system is flat by design philosophy
+- Do not add drop shadows, box-shadows, or elevation effects — the system is flat by design philosophy. The one deliberate exception is the Work page's tilt cards (see Tilt Cards), whose layered shadow is part of the depth illusion itself (it slides opposite the tilt); it uses only `--card-shadow-color`, and nothing else on the site should reach for it
 - Do not use the gradient outside the hero sphere context — it is a single signature moment, not a recurring accent
 - Do not set body text below 15px or above 20px — the 15/20 pair is the readable range in this system (raised from 15/18 when body copy was deliberately made to read as more confident copy rather than a caption)
 - Do not center-align body paragraphs — body copy reads left-aligned, always
@@ -393,11 +429,20 @@ Ataero Retina OB Edition is a custom font — not available on Google Fonts or A
 
   /* Motion — Stagger */
   --stagger-step: 75ms;
+  --stagger-heading: 60ms;
 
   /* Motion — Cursor Interaction */
   --orb-bounce-distance: 14px;
   --magnetic-radius: 70px;
   --magnetic-strength: 0.3;
+
+  /* Depth — Work page tilt cards */
+  --card-tilt-max: 8deg;
+  --card-tilt-lerp: 0.12;
+  --card-tilt-depth: 22px;
+  --card-shadow-shift: 18px;
+  --card-shadow-color: color-mix(in srgb, var(--color-ink) 16%, transparent);
+  --project-card-media-width: 440px;
 }
 ```
 
@@ -471,10 +516,19 @@ Ataero Retina OB Edition is a custom font — not available on Google Fonts or A
 
   /* Motion — Stagger */
   --stagger-step: 75ms;
+  --stagger-heading: 60ms;
 
   /* Motion — Cursor Interaction */
   --orb-bounce-distance: 14px;
   --magnetic-radius: 70px;
   --magnetic-strength: 0.3;
+
+  /* Depth — Work page tilt cards */
+  --card-tilt-max: 8deg;
+  --card-tilt-lerp: 0.12;
+  --card-tilt-depth: 22px;
+  --card-shadow-shift: 18px;
+  --card-shadow-color: color-mix(in srgb, var(--color-ink) 16%, transparent);
+  --project-card-media-width: 440px;
 }
 ```

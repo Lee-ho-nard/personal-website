@@ -27,8 +27,11 @@
     <main>
       <section>
         <article class="project-card reveal zigzag" id="flit">
-          <p class="section-label">Flit — Personal Operating System</p>
-          <h2>Flit</h2>
+          <div class="project-card__head">
+            <p class="section-label">Flit — Personal Operating System</p>
+            <h2>Flit</h2>
+          </div>
+          <div class="project-card__body">
           <p>
             I kept starting tasks and losing them — half in a notes app, half in my head, most forgotten by evening. Every planner I tried was built for someone managing a calendar full of meetings, not someone trying to actually finish things and see whether they're improving. So I built Flit: a daily planner that treats task management, focus sessions, and progress tracking as one system instead of three separate habits.
           </p>
@@ -48,11 +51,28 @@
               <dd>Pre-launch</dd>
             </div>
           </dl>
+          </div>
+
+          <!-- Tilt card: three real Flit screenshots (extracted from Flit.html into img/),
+               stacked with slight rotation/offset. The MacBook scene from that file is
+               deliberately not reproduced here — reserved for a later Flit landing page. -->
+          <div class="tilt-card" data-tilt>
+            <div class="tilt-card__card">
+              <div class="tilt-card__stage">
+                <img class="tilt-shot tilt-shot--analysis" src="img/flit-analysis.webp" width="2000" height="1261" alt="Flit&#39;s Analysis screen: a completion ring and this week&#39;s task insights" />
+                <img class="tilt-shot tilt-shot--goals" src="img/flit-goals.webp" width="2000" height="1261" alt="Flit&#39;s Goals screen showing a single piano goal" />
+                <img class="tilt-shot tilt-shot--deepwork" src="img/flit-deepwork.webp" width="2000" height="1255" alt="Flit&#39;s Deep Work screen: a focus timer counting down from 50 minutes" />
+              </div>
+            </div>
+          </div>
         </article>
 
         <article class="project-card reveal zigzag">
-          <p class="section-label">Client Work</p>
-          <h2>Premium Website Design</h2>
+          <div class="project-card__head">
+            <p class="section-label">Client Work</p>
+            <h2>Premium Website Design</h2>
+          </div>
+          <div class="project-card__body">
           <p>
             Capable of designing and building full, premium websites from scratch — custom design systems, typography, and layout, structured content sections, and multi-page builds. Comfortable working to the standard a real client would expect.
           </p>
@@ -62,6 +82,25 @@
           <p>
             Every one of these, including this site, is hand-written — no page builder, no template, just HTML, CSS, and JavaScript.
           </p>
+          </div>
+
+          <!-- PLACEHOLDER — no screenshot supplied yet, and none is invented here.
+               To finish this card, replace the .tilt-shot--placeholder div below with:
+                 <img class="tilt-shot tilt-shot--hero" src="img/premium-website.webp"
+                      width="2000" height="1261" alt="…describe the concept site…" />
+               Image spec: WebP, 2000 x 1261 px (same ~1.59:1 as the Flit shots), a
+               desktop browser capture of the consulting concept site (hero / home page),
+               quality ~80 so it stays under ~80 KB. -->
+          <div class="tilt-card" data-tilt>
+            <div class="tilt-card__card">
+              <div class="tilt-card__stage">
+                <div class="tilt-shot tilt-shot--hero tilt-shot--placeholder" role="img" aria-label="Placeholder for a screenshot of the premium website design project, not yet supplied">
+                  <span class="tilt-shot__label">Placeholder</span>
+                  <span class="tilt-shot__note">Screenshot of the consulting concept site to come</span>
+                </div>
+              </div>
+            </div>
+          </div>
         </article>
       </section>
     </main>

@@ -512,6 +512,79 @@
     }
   }
 
+  // --- Tilt cards (Work page) ---
+  // Pointer position over a [data-tilt] wrapper steers the card's
+  // --tilt-rx/--tilt-ry (rotateX/rotateY, max --card-tilt-max) and its
+  // shadow offset (--card-shadow-x/y, opposite the tilt) toward a target;
+  // a rAF loop lerps the current values to it by --card-tilt-lerp, same
+  // shape as the old cursor-follow tick, and stops once settled. The
+  // transform and the layered shadow themselves are CSS (style.css) —
+  // this only writes those four custom properties.
+  //
+  // Gating is by *event*, not by media query: the listener is always
+  // attached and only a pointermove whose pointerType is "mouse" or "pen"
+  // does anything, so a touchscreen laptop that reports its primary input
+  // as coarse/no-hover (which is exactly what made hover effects silently
+  // vanish before — see the hasMouse note at the top of this file) still
+  // tilts under a trackpad, while a pure-touch device never sends one and
+  // keeps a static card. Reduced motion attaches nothing at all.
+  if (!reducedMotion) {
+    const TILT_MAX = px("--card-tilt-max", 8);
+    const TILT_LERP = px("--card-tilt-lerp", 0.12);
+    const SHADOW_SHIFT = px("--card-shadow-shift", 18);
+
+    document.querySelectorAll("[data-tilt]").forEach((wrap) => {
+      const card = wrap.querySelector(".tilt-card__card");
+      if (!card) return;
+
+      // Targets and current values: x/y are the pointer's -1..1 position
+      // across the wrapper; everything else derives from them.
+      let tx = 0, ty = 0, cx = 0, cy = 0;
+      let raf = 0;
+
+      function write() {
+        card.style.setProperty("--tilt-rx", (-cy * TILT_MAX).toFixed(3) + "deg");
+        card.style.setProperty("--tilt-ry", (cx * TILT_MAX).toFixed(3) + "deg");
+        card.style.setProperty("--card-shadow-x", (-cx * SHADOW_SHIFT).toFixed(2) + "px");
+        card.style.setProperty("--card-shadow-y", (-cy * SHADOW_SHIFT).toFixed(2) + "px");
+      }
+
+      function tick() {
+        cx += (tx - cx) * TILT_LERP;
+        cy += (ty - cy) * TILT_LERP;
+        if (Math.abs(tx - cx) + Math.abs(ty - cy) < 0.0005) {
+          cx = tx;
+          cy = ty;
+          write();
+          raf = 0;
+          return;
+        }
+        write();
+        raf = requestAnimationFrame(tick);
+      }
+
+      function aim(x, y) {
+        tx = x;
+        ty = y;
+        if (!raf) raf = requestAnimationFrame(tick);
+      }
+
+      wrap.addEventListener("pointermove", (e) => {
+        if (e.pointerType !== "mouse" && e.pointerType !== "pen") return;
+        // The wrapper itself never transforms, so its rect is stable
+        // while the card inside it rotates.
+        const r = wrap.getBoundingClientRect();
+        const nx = ((e.clientX - r.left) / r.width) * 2 - 1;
+        const ny = ((e.clientY - r.top) / r.height) * 2 - 1;
+        aim(Math.max(-1, Math.min(1, nx)), Math.max(-1, Math.min(1, ny)));
+      }, { passive: true });
+
+      const rest = () => aim(0, 0);
+      wrap.addEventListener("pointerleave", rest);
+      wrap.addEventListener("pointercancel", rest);
+    });
+  }
+
   // --- Magnetic ghost-links / nav links (site-wide, pointer devices only) ---
   if (canHover && !reducedMotion) {
     const magneticEls = Array.from(document.querySelectorAll(".ghost-link, nav a"));
@@ -567,6 +640,46 @@
         }
       });
     }
+  }
+
+  // --- Heading split (every page; the reveal itself is further down,
+  // after the orb section) ---
+  // Splits every `main h2` into per-word masked spans, here — *before*
+  // the scroll-linked orb section below — so that section's first real
+  // DOM measurement (each .zigzag block's rect, which its waypoints are
+  // derived from) already sees the final markup. The split is built to
+  // leave every heading's box unchanged (see .split-word in style.css),
+  // but ordering it first means that holds by construction rather than
+  // by luck. Words, not characters, so kerning inside a word survives.
+  // The full text stays available to assistive tech via aria-label on the
+  // heading, with the split spans aria-hidden. Skipped entirely — headings
+  // stay as plain text, i.e. immediately in their final state — under
+  // reduced motion, or when GSAP/ScrollTrigger aren't there to reveal them.
+  const splitHeadings = [];
+  if (!reducedMotion && window.gsap && window.ScrollTrigger) {
+    document.querySelectorAll("main h2").forEach((h) => {
+      const text = h.textContent.trim().replace(/\s+/g, " ");
+      if (!text) return;
+      h.setAttribute("aria-label", text);
+      h.textContent = "";
+      const inners = [];
+      const words = text.split(" ");
+      words.forEach((word, i) => {
+        const mask = document.createElement("span");
+        mask.className = "split-word";
+        mask.setAttribute("aria-hidden", "true");
+        const inner = document.createElement("span");
+        inner.className = "split-word__inner";
+        inner.textContent = word;
+        mask.appendChild(inner);
+        h.appendChild(mask);
+        if (i < words.length - 1) h.appendChild(document.createTextNode(" "));
+        inners.push(inner);
+      });
+      // 120% (not 100%) clears the mask's own bottom padding too.
+      gsap.set(inners, { yPercent: 120 });
+      splitHeadings.push({ h, inners });
+    });
   }
 
   // --- Scroll-linked orb: hand-authored GSAP ScrollTrigger waypoints ---
@@ -864,5 +977,113 @@
         requestAnimationFrame(tickOrganic);
       })();
     }
+  }
+
+  // --- Heading reveal (every page; markup was split above) ---
+  // Deliberately separate from the orb's timeline: its own ScrollTriggers,
+  // created, killed and rebuilt on their own, never inside the orb's
+  // gsap.context, so reverting/rebuilding the orb can't touch a heading
+  // and vice versa. Easing and duration come from the same CSS tokens the
+  // rest of the site uses (--ease-standard, --duration-slow) plus the new
+  // --stagger-heading, rather than being hardcoded here.
+  if (splitHeadings.length) {
+    gsap.registerPlugin(ScrollTrigger); // idempotent; the orb section's own call is conditional on more than this needs
+    const cssSeconds = (name, fallback) => {
+      const raw = styles.getPropertyValue(name).trim();
+      const m = /^([\d.]+)(ms|s)$/.exec(raw);
+      return m ? parseFloat(m[1]) / (m[2] === "ms" ? 1000 : 1) : fallback;
+    };
+    // GSAP can't read a CSS cubic-bezier() on its own (that's CustomEase,
+    // a separate plugin — not worth another script for one curve), so this
+    // is the standard Newton-iteration solve of the same curve the CSS
+    // token describes, handed to GSAP as a plain function ease.
+    const cssEase = (name) => {
+      const m = /cubic-bezier\(\s*([-\d.]+)\s*,\s*([-\d.]+)\s*,\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)/.exec(styles.getPropertyValue(name));
+      if (!m) return "power2.out";
+      const [x1, y1, x2, y2] = m.slice(1).map(parseFloat);
+      const cx = 3 * x1, bx = 3 * (x2 - x1) - cx, ax = 1 - cx - bx;
+      const cy = 3 * y1, by = 3 * (y2 - y1) - cy, ay = 1 - cy - by;
+      const X = (t) => ((ax * t + bx) * t + cx) * t;
+      const Y = (t) => ((ay * t + by) * t + cy) * t;
+      const dX = (t) => (3 * ax * t + 2 * bx) * t + cx;
+      return (x) => {
+        if (x <= 0 || x >= 1) return x;
+        let t = x;
+        for (let i = 0; i < 8; i++) {
+          const err = X(t) - x;
+          if (Math.abs(err) < 1e-5) break;
+          const d = dX(t);
+          if (Math.abs(d) < 1e-6) break;
+          t -= err / d;
+        }
+        return Y(t);
+      };
+    };
+
+    const duration = cssSeconds("--duration-slow", 0.6);
+    const stagger = cssSeconds("--stagger-heading", 0.06);
+    const ease = cssEase("--ease-standard");
+    const played = new Set();
+    let triggers = [];
+
+    function play(item) {
+      gsap.to(item.inners, { yPercent: 0, duration, ease, stagger, clearProps: "transform", overwrite: true });
+    }
+
+    function reveal(item) {
+      if (played.has(item)) return;
+      played.add(item);
+      // The heading's own section also fades/rises in via the existing
+      // .reveal class (an IntersectionObserver in each page, much later
+      // than this trigger's 85% line on a tall section). Starting the
+      // word reveal while that parent is still at opacity 0 would play
+      // most of it invisibly, so wait for .visible first.
+      const section = item.h.closest(".reveal");
+      if (section && !section.classList.contains("visible")) {
+        const mo = new MutationObserver(() => {
+          if (section.classList.contains("visible")) {
+            mo.disconnect();
+            play(item);
+          }
+        });
+        mo.observe(section, { attributes: true, attributeFilter: ["class"] });
+      } else {
+        play(item);
+      }
+    }
+
+    function buildHeadingTriggers() {
+      triggers.forEach((t) => t.kill());
+      triggers = [];
+      splitHeadings.forEach((item) => {
+        if (played.has(item)) return; // already revealed — stays revealed
+        triggers.push(ScrollTrigger.create({
+          trigger: item.h,
+          start: "top 85%",
+          once: true,
+          onEnter: () => reveal(item),
+        }));
+      });
+    }
+
+    buildHeadingTriggers();
+    // Both this and the orb's own timeline are built now (the orb's
+    // build() ran above, synchronously) — refresh so every start/end,
+    // the orb's footer-fade end included, is evaluated against the final
+    // layout together.
+    ScrollTrigger.refresh();
+
+    // Same 200ms debounce as the orb's own rebuild listener above. That
+    // listener was registered first, so its timer is queued first and its
+    // build() runs before this one — meaning the refresh below really is
+    // "after both are built", not just after this one.
+    let headingResizeTimer;
+    window.addEventListener("resize", () => {
+      clearTimeout(headingResizeTimer);
+      headingResizeTimer = setTimeout(() => {
+        buildHeadingTriggers();
+        ScrollTrigger.refresh();
+      }, 200);
+    });
   }
 })();
